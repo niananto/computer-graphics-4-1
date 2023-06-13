@@ -1,159 +1,294 @@
-#include <GL/glut.h>
-#include <iostream>
+#include <windows.h>  // for MS Windows
+#include <GL/glut.h>  // GLUT, include glu.h and gl.h
 #include <cmath>
-#include <ctime>
 
-#define PI (2*acos(0.0))
-
-float cx = 0;
-float cy = 0.4;
-float r_outer = 0.5;
-float r_inner = 0.4;
-float r_hour = 0.2;
-float r_minute = 0.25;
-float r_second = 0.3;
-float theta_hour = 90;
-float theta_minute = 90;
-float theta_second = 90;
-float r_pendulum_top = 0.055;
-float pendulum_length = 0.45;
-float theta_pendulum = 0;
-float r_pendulum_bottom = 0.08;
-
-
-void display(){
-  glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Set background color to black and opaque
-  glClear(GL_COLOR_BUFFER_BIT);         // Clear the color buffer
-
-  float x, y;
-
-  // the outer box
-  glLineWidth(1);
-  glBegin(GL_LINE_LOOP);
-    glColor3d(1, 1, 1);  // White
-    glVertex2f(-0.7, 0.95);
-    glVertex2f(0.7, 0.95);
-    glVertex2f(0.7, -0.45);
-    glVertex2f(0, -0.85);
-    glVertex2f(-0.7, -0.45);
-  glEnd();
-
-  // the outer circle
-  glLineWidth(2);
-  glBegin(GL_LINE_LOOP);
-    glColor3d(1, 1, 1);  // White
-    for (float theta = 0; theta < 360; theta += 10) {
-        x = cx + r_outer * cos(theta/180*PI);
-        y = cy + r_outer * sin(theta/180*PI);
-        glVertex2f(x,y);
-    }
-  glEnd();
-
-  // the inner circle
-  glLineWidth(2);
-  glBegin(GL_LINE_LOOP);
-    glColor3d(1, 1, 1);  // White
-    for (float theta = 0; theta < 360; theta += 10) {
-        x = cx + r_inner * cos(theta/180*PI);
-        y = cy + r_inner * sin(theta/180*PI);
-        glVertex2f(x,y);
-    }
-  glEnd();
-
-  // the hour ticks
-  glLineWidth(1);
-  glBegin(GL_LINES);
-    glColor3d(1, 1, 1);  // White
-    for (float theta = 0; theta < 360; theta += 90) {
-        x = cx + r_inner * cos(theta/180*PI);
-        y = cy + r_inner * sin(theta/180*PI);
-        glVertex2f(x,y);
-        x = cx + (r_inner - 0.07) * cos(theta/180*PI);
-        y = cy + (r_inner - 0.07) * sin(theta/180*PI);
-        glVertex2f(x,y);
-    }
-    for (float theta = 30; theta < 360; theta += 30) {
-        x = cx + r_inner * cos(theta/180*PI);
-        y = cy + r_inner * sin(theta/180*PI);
-        glVertex2f(x,y);
-        x = cx + (r_inner - 0.03) * cos(theta/180*PI);
-        y = cy + (r_inner - 0.03) * sin(theta/180*PI);
-        glVertex2f(x,y);
-    }
-  glEnd();
-
-  // the hour hand
-  glLineWidth(5);
-  x = cx + r_hour * cos(theta_hour/180*PI);
-  y = cy + r_hour * sin(theta_hour/180*PI);
-  glBegin(GL_LINES);
-    glColor3d(1, 1, 1);  // White
-    glVertex2f(cx, cy);
-    glVertex2f(x, y);
-  glEnd();
-
-  // the minute hand
-  glLineWidth(3);
-  x = cx + r_minute * cos(theta_minute/180*PI);
-  y = cy + r_minute * sin(theta_minute/180*PI);
-  glBegin(GL_LINES);
-    glColor3d(1, 1, 1);  // White
-    glVertex2f(cx, cy);
-    glVertex2f(x, y);
-  glEnd();
-
-  // the second hand
-  glLineWidth(1);
-  x = cx + r_second * cos(theta_second/180*PI);
-  y = cy + r_second * sin(theta_second/180*PI);
-  glBegin(GL_LINES);
-    glColor3d(1, 1, 1);  // White
-    glVertex2f(cx, cy);
-    glVertex2f(x, y);
-  glEnd();
-
-  // the pendulum
-  // the top circle
-  glBegin(GL_POLYGON);
-    glColor3d(1, 1, 1);  // White
-    for (float theta = 0; theta < 360; theta += 10) {
-        x = cx + r_pendulum_top * cos(theta/180*PI);
-        y = (cy - r_outer) + r_pendulum_top * sin(theta/180*PI);
-        glVertex2f(x,y);
-    }
-  glEnd();
-
-  // the rod
-  glLineWidth(3);
-  x = cx + pendulum_length * cos(theta_pendulum/180*PI);
-  y = (cy - r_outer) + pendulum_length * sin(theta_pendulum/180*PI);
-  glBegin(GL_LINES);
-    glColor3d(1, 1, 1);  // White
-    glVertex2f(cx, cy - r_outer);
-    glVertex2f(x, y);
-  glEnd();
-
-  // the bottom circle
-  glBegin(GL_POLYGON);
-    glColor3d(1, 1, 1);  // White
-    for (float theta = 0; theta < 360; theta += 10) {
-        float temp_x = x + r_pendulum_bottom * cos(theta/180*PI);
-        float temp_y = y + r_pendulum_bottom * sin(theta/180*PI);
-        glVertex2f(temp_x, temp_y);
-    }
-  glEnd();
-
-  glFlush();  // Render now
+void initGL() {
+  glClearColor(0.0f, 0.0f, 0.0f, 1.0f);   // Black and opaque
+  glEnable(GL_DEPTH_TEST);   // Enable depth testing for z-culling
 }
 
-int main(int argc, char **argv){
-	glutInit(&argc,argv);
-	glutInitWindowSize(500, 500);
-	glutInitWindowPosition(0, 0);
-	glutCreateWindow("Magic Cube");
+GLfloat eyex = 4, eyey = 4, eyez = 4;
+GLfloat centerx = 0, centery = 0, centerz = 0;
+GLfloat upx = 0, upy = 1, upz = 0;
+bool isAxes = false, isCube = false, isPyramid = true;
 
-	glutDisplayFunc(display);	//display callback function
+void drawAxes() {
+    glLineWidth(3);
+    glBegin(GL_LINES);
+        glColor3f(1,0,0);   // Red
+        // X axis
+        glVertex3f(0,0,0);
+        glVertex3f(1,0,0);
 
-	glutMainLoop();		//The main loop of OpenGL
-	return 0;
+        glColor3f(0,1,0);   // Green
+        // Y axis
+        glVertex3f(0,0,0);
+        glVertex3f(0,1,0);
+
+        glColor3f(0,0,1);   // Blue
+        // Z axis
+        glVertex3f(0,0,0);
+        glVertex3f(0,0,1);
+    glEnd();
+}
+
+/* Draw a cube centered at the origin */
+void drawCube() {
+    glBegin(GL_QUADS);                // Begin drawing the color cube with 6 quads
+        // Top face (y = 1.0f)
+        // Define vertices in counter-clockwise (CCW) order with normal pointing out
+        glColor3f(0.0f, 1.0f, 0.0f);     // Green
+        glVertex3f( 1.0f, 1.0f, -1.0f);
+        glVertex3f(-1.0f, 1.0f, -1.0f);
+        glVertex3f(-1.0f, 1.0f,  1.0f);
+        glVertex3f( 1.0f, 1.0f,  1.0f);
+
+        // Bottom face (y = -1.0f)
+        glColor3f(1.0f, 0.5f, 0.0f);     // Orange
+        glVertex3f( 1.0f, -1.0f,  1.0f);
+        glVertex3f(-1.0f, -1.0f,  1.0f);
+        glVertex3f(-1.0f, -1.0f, -1.0f);
+        glVertex3f( 1.0f, -1.0f, -1.0f);
+
+        // Front face  (z = 1.0f)
+        glColor3f(1.0f, 0.0f, 0.0f);     // Red
+        glVertex3f( 1.0f,  1.0f, 1.0f);
+        glVertex3f(-1.0f,  1.0f, 1.0f);
+        glVertex3f(-1.0f, -1.0f, 1.0f);
+        glVertex3f( 1.0f, -1.0f, 1.0f);
+
+        // Back face (z = -1.0f)
+        glColor3f(1.0f, 1.0f, 0.0f);     // Yellow
+        glVertex3f( 1.0f, -1.0f, -1.0f);
+        glVertex3f(-1.0f, -1.0f, -1.0f);
+        glVertex3f(-1.0f,  1.0f, -1.0f);
+        glVertex3f( 1.0f,  1.0f, -1.0f);
+
+        // Left face (x = -1.0f)
+        glColor3f(0.0f, 0.0f, 1.0f);     // Blue
+        glVertex3f(-1.0f,  1.0f,  1.0f);
+        glVertex3f(-1.0f,  1.0f, -1.0f);
+        glVertex3f(-1.0f, -1.0f, -1.0f);
+        glVertex3f(-1.0f, -1.0f,  1.0f);
+
+        // Right face (x = 1.0f)
+        glColor3f(1.0f, 0.0f, 1.0f);     // Magenta
+        glVertex3f(1.0f,  1.0f, -1.0f);
+        glVertex3f(1.0f,  1.0f,  1.0f);
+        glVertex3f(1.0f, -1.0f,  1.0f);
+        glVertex3f(1.0f, -1.0f, -1.0f);
+    glEnd();  // End of drawing color-cube
+}
+
+void drawTriangle() {
+  glBegin(GL_TRIANGLES);
+    glVertex3f(1, 0, 0);
+    glVertex3f(0, 1, 0);
+    glVertex3f(0, 0, 1);
+  glEnd();
+}
+
+void drawPyramid() {
+  glPushMatrix();
+    glColor3f(1, 0, 1);
+    drawTriangle();
+
+    glRotatef(90, 0, 1, 0);
+    glColor3f(0, 1, 1);
+    drawTriangle();
+
+    glRotatef(90, 0, 1, 0);
+    glColor3f(1, 0, 1);
+    drawTriangle();
+
+    glRotatef(90, 0, 1, 0);
+    glColor3f(0, 1, 1);
+    drawTriangle();
+  glPopMatrix();
+}
+
+void drawOctahedron() {
+  // upper pyramid
+  drawPyramid();
+
+  // lower pyramid
+  glPushMatrix();
+    glRotatef(180, 1, 0, 0);
+    drawPyramid();
+  glPopMatrix();
+}
+
+/*  Handler for window-repaint event. Call back when the window first appears and
+    whenever the window needs to be re-painted. */
+void display() {
+    // glClear(GL_COLOR_BUFFER_BIT);            // Clear the color buffer (background)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glMatrixMode(GL_MODELVIEW);             // To operate on Model-View matrix
+    glLoadIdentity();                       // Reset the model-view matrix
+
+    // default arguments of gluLookAt
+    // gluLookAt(0,0,0, 0,0,-100, 0,1,0);
+
+    // control viewing (or camera)
+    gluLookAt(eyex,eyey,eyez,
+              centerx,centery,centerz,
+              upx,upy,upz);
+    // draw
+    if (isAxes) drawAxes();
+    if (isCube) drawCube();
+    if (isPyramid) drawOctahedron();
+
+    glutSwapBuffers();  // Render now
+}
+
+/* Handler for window re-size event. Called back when the window first appears and
+   whenever the window is re-sized with its new width and height */
+void reshapeListener(GLsizei width, GLsizei height) {  // GLsizei for non-negative integer
+    // Compute aspect ratio of the new window
+    if (height == 0) height = 1;                // To prevent divide by 0
+    GLfloat aspect = (GLfloat)width / (GLfloat)height;
+
+    // Set the viewport to cover the new window
+    glViewport(0, 0, width, height);
+
+    // Set the aspect ratio of the clipping area to match the viewport
+    glMatrixMode(GL_PROJECTION);  // To operate on the Projection matrix
+    glLoadIdentity();             // Reset the projection matrix
+    /*if (width >= height) {
+        // aspect >= 1, set the height from -1 to 1, with larger width
+        gluOrtho2D(-1.0 * aspect, 1.0 * aspect, -1.0, 1.0);
+    } else {
+        // aspect < 1, set the width to -1 to 1, with larger height
+        gluOrtho2D(-1.0, 1.0, -1.0 / aspect, 1.0 / aspect);
+    }*/
+    // Enable perspective projection with fovy, aspect, zNear and zFar
+    gluPerspective(45.0f, aspect, 0.1f, 100.0f);
+}
+
+/* Callback handler for normal-key event */
+void keyboardListener(unsigned char key, int x, int y) {
+  double v = 0.25;
+  double lx = centerx - eyex;
+  double lz = centerz - eyez;
+  double s;
+
+  switch (key) {
+  // Control eye (location of the eye)
+  // control eyex
+  case '1':
+      eyex += v;
+      break;
+  case '2':
+      eyex -= v;
+      break;
+  // control eyey
+  case '3':
+      eyey += v;
+      break;
+  case '4':
+      eyey -= v;
+      break;
+  // control eyez
+  case '5':
+      eyez += v;
+      break;
+  case '6':
+      eyez -= v;
+      break;
+
+  // Control center (location where the eye is looking at)
+  // control centerx
+  // case 'q':
+  //     centerx += v;
+  //     break;
+  // case 'z':
+  //     centerx -= v;
+  //     break;
+  // // control centery
+  // case 'e':
+  //     centery += v;
+  //     break;
+  // case 'r':
+  //     centery -= v;
+  //     break;
+  // // control centerz
+  // case 't':
+  //     centerz += v;
+  //     break;
+  // case 'y':
+  //     centerz -= v;
+  //     break;
+
+  // Control what is shown
+  case 'a':
+    eyex += v * (-upy*lz);
+    eyez += v * (lx*upy);
+    s = sqrt(eyex*eyex + eyez*eyez) / (4 * sqrt(2));
+    eyex /= s;
+    eyez /= s;
+    break;
+  case 'd':
+    eyex += v * (upy*lz);
+    eyez += v * (-lx*upy);
+    s = sqrt(eyex*eyex + eyez*eyez) / (4 * sqrt(2));
+    eyex /= s;
+    eyez /= s;
+    break;
+  case 'w':
+    eyey += v;
+    break;
+  case 's':
+    eyey -= v;
+    break;
+
+  case 'c':
+      isCube = !isCube;   // show/hide Cube if 'c' is pressed
+      break;
+  case 'p':
+      isPyramid = !isPyramid; // show/hide Pyramid if 'p' is pressed
+      break;
+
+  // Control exit
+  case 27:    // ESC key
+      exit(0);    // Exit window
+      break;
+  }
+  glutPostRedisplay();    // Post a paint request to activate display()
+}
+
+/* Callback handler for special-key event */
+void specialKeyListener(int key, int x,int y) {
+  double v = 0.25;
+  double lx = centerx - eyex;
+  double lz = centerz - eyez;
+  double s;
+  switch (key) {
+  case GLUT_KEY_PAGE_UP:
+    centery += v;
+    break;
+  case GLUT_KEY_PAGE_DOWN:
+    centery -= v;
+    break;
+  
+  default:
+    return;
+  }
+  
+  glutPostRedisplay();    // Post a paint request to activate display()
+}
+
+/* Main function: GLUT runs as a console application starting at main()  */
+int main(int argc, char** argv) {
+  glutInit(&argc, argv);                      // Initialize GLUT
+  glutInitWindowSize(640, 640);               // Set the window's initial width & height
+  glutInitWindowPosition(50, 50);             // Position the window's initial top-left corner
+  glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGB);	//Depth, Double buffer, RGB color
+  glutCreateWindow("OpenGL 3D Drawing");      // Create a window with the given title
+  glutDisplayFunc(display);                   // Register display callback handler for window re-paint
+  glutReshapeFunc(reshapeListener);           // Register callback handler for window re-shape
+  glutKeyboardFunc(keyboardListener);         // Register callback handler for normal-key event
+  glutSpecialFunc(specialKeyListener);        // Register callback handler for special-key event
+  initGL();                                   // Our own OpenGL initialization
+  glutMainLoop();                             // Enter the event-processing loop
+  return 0;
 }
