@@ -15,12 +15,20 @@ typedef struct Point
   GLfloat x, y, z;
 } Point;
 
-GLfloat eyex = 4, eyey = 4, eyez = 4;
-GLfloat centerx = 0, centery = 0, centerz = 0;
-GLfloat upx = 0, upy = 1, upz = 0;
+// GLfloat eyex = 4, eyey = 4, eyez = 4;
+// GLfloat centerx = 0, centery = 0, centerz = 0;
+// GLfloat upx = 0, upy = 1, upz = 0;
+
+Point pos; // position of the eye
+Point l;   // look/forward direction
+Point r;   // right direction - temp use
+Point u;   // up direction
+Point c;   // center of the scene - temp use
 
 GLfloat scale = 0;
-GLfloat STEP_SCALE = 1.0/16.0;
+GLfloat STEP_SCALE = 1.0 / 16.0;
+
+GLint rotate_y = 0;
 
 void drawAxes()
 {
@@ -46,45 +54,45 @@ void drawAxes()
 void drawTriangle()
 {
   glPushMatrix();
-    glBegin(GL_TRIANGLES);
-      glVertex3f(1, 0, 0);
-      glVertex3f(0, 1, 0);
-      glVertex3f(0, 0, 1);
-    glEnd();
+  glBegin(GL_TRIANGLES);
+  glVertex3f(1, 0, 0);
+  glVertex3f(0, 1, 0);
+  glVertex3f(0, 0, 1);
+  glEnd();
   glPopMatrix();
 }
 
 void drawPyramid()
 {
   glPushMatrix();
-    glColor3f(1, 0, 1);
-    glTranslatef(scale, scale, scale);
-    glScalef(1-scale, 1-scale, 1-scale);
-    drawTriangle();
+  glColor3f(0, 1, 1); // cyan
+  glTranslatef(scale / 3, scale / 3, scale / 3);
+  glScalef(1 - scale, 1 - scale, 1 - scale);
+  drawTriangle();
   glPopMatrix();
 
   glRotatef(90, 0, 1, 0);
   glPushMatrix();
-    glColor3f(0, 1, 1);
-    glTranslatef(scale, scale, scale);
-    glScalef(1-scale, 1-scale, 1-scale);
-    drawTriangle();
+  glColor3f(1, 0, 1); // magenta
+  glTranslatef(scale / 3, scale / 3, scale / 3);
+  glScalef(1 - scale, 1 - scale, 1 - scale);
+  drawTriangle();
   glPopMatrix();
 
   glRotatef(90, 0, 1, 0);
   glPushMatrix();
-    glColor3f(1, 0, 1);
-    glTranslatef(scale, scale, scale);
-    glScalef(1-scale, 1-scale, 1-scale);
-    drawTriangle();
+  glColor3f(0, 1, 1); // cyan
+  glTranslatef(scale / 3, scale / 3, scale / 3);
+  glScalef(1 - scale, 1 - scale, 1 - scale);
+  drawTriangle();
   glPopMatrix();
 
   glRotatef(90, 0, 1, 0);
   glPushMatrix();
-    glColor3f(0, 1, 1);
-    glTranslatef(scale, scale, scale);
-    glScalef(1-scale, 1-scale, 1-scale);
-    drawTriangle();
+  glColor3f(1, 0, 1); // magenta
+  glTranslatef(scale / 3, scale / 3, scale / 3);
+  glScalef(1 - scale, 1 - scale, 1 - scale);
+  drawTriangle();
   glPopMatrix();
 }
 
@@ -95,15 +103,15 @@ void drawOctahedron()
 
   // lower pyramid
   glPushMatrix();
-    glRotatef(180, 0, 0, 1);
-    glRotatef(90, 0, 1, 0); // this is just for color consistency
-    drawPyramid();
+  glRotatef(180, 0, 0, 1);
+  glRotatef(90, 0, 1, 0); // this is just for color consistency
+  drawPyramid();
   glPopMatrix();
 }
 
 // generate vertices for +X face only by intersecting 2 circular planes
 // (longitudinal and latitudinal) at the given longitude/latitude angles
-Point **getSphereSide(int subdivision, int radius)
+Point **getSphereSide(int subdivision, float radius)
 {
   float n1[3]; // normal of longitudinal plane rotating along Y-axis
   float n2[3]; // normal of latitudinal plane rotating along Z-axis
@@ -128,7 +136,7 @@ Point **getSphereSide(int subdivision, int radius)
     n2[1] = cos(a2);
     n2[2] = 0;
 
-    // rotate longitudinal plane from -45 to 45 along Y-axis (left-to-right)
+    // rotate longitudinal plane from -45 to 45 along Y-axis (left-to-r.)
     for (unsigned int j = 0; j < pointsPerRow; ++j)
     {
       // normal for longitudinal plane
@@ -159,7 +167,7 @@ Point **getSphereSide(int subdivision, int radius)
   return points;
 }
 
-void drawSphereSide(int subdivision = 5, int radius = 1)
+void drawSphereSide(int subdivision = 5, float radius = 1)
 {
   Point **points = getSphereSide(subdivision, radius);
   int pointsPerRow = (int)pow(2, subdivision) + 1;
@@ -180,24 +188,115 @@ void drawSphereSide(int subdivision = 5, int radius = 1)
   glEnd();
 }
 
-void drawSphere(int subdivision = 5, int radius = 1)
+void drawSphere(int subdivision = 5, float radius = 1 / sqrt(3)) // as the circle should touch the octahedron at (1/3, 1/3, 1/3)
 {
   glPushMatrix();
+  glPushMatrix();
+  glColor3f(0, 1, 0); // green
+  glTranslatef(1 - scale, 0, 0);
+  glScalef(scale, scale, scale);
+  drawSphereSide(subdivision, radius);
+  glPopMatrix();
+
+  glRotatef(90, 0, 1, 0);
+  glPushMatrix();
+  glColor3f(0, 0, 1); // blue
+  glTranslatef(1 - scale, 0, 0);
+  glScalef(scale, scale, scale);
+  drawSphereSide(subdivision, radius);
+  glPopMatrix();
+
+  glRotatef(90, 0, 1, 0);
+  glPushMatrix();
+  glColor3f(0, 1, 0); // green
+  glTranslatef(1 - scale, 0, 0);
+  glScalef(scale, scale, scale);
+  drawSphereSide(subdivision, radius);
+  glPopMatrix();
+
+  glRotatef(90, 0, 1, 0);
+  glPushMatrix();
+  glColor3f(0, 0, 1); // blue
+  glTranslatef(1 - scale, 0, 0);
+  glScalef(scale, scale, scale);
+  drawSphereSide(subdivision, radius);
+  glPopMatrix();
+
+  glRotatef(90, 0, 0, 1);
+  glPushMatrix();
+  glColor3f(1, 0, 0); // red
+  glTranslatef(1 - scale, 0, 0);
+  glScalef(scale, scale, scale);
+  drawSphereSide(subdivision, radius);
+  glPopMatrix();
+
+  glRotatef(180, 0, 0, 1);
+  glPushMatrix();
+  glColor3f(1, 0, 0); // red
+  glTranslatef(1 - scale, 0, 0);
+  glScalef(scale, scale, scale);
+  drawSphereSide(subdivision, radius);
+  glPopMatrix();
+  glPopMatrix();
+}
+
+// draw a cylinder from +angle to -angle
+void drawCylinder(float angle = (M_PI - acos(-1.0/3.0))/2.0, float radius = 1 / sqrt(3),
+                  float height = sqrt(2)) // these values come from spec & geometry
+{
+  float angle_stepsize = 0.1;
+  int segments = (int)(angle * 2 / angle_stepsize) + 1;
+
+  height *= (1 - scale);
+  radius *= scale;
+
+  // Draw the tube
+  glPushMatrix();
+  glTranslatef(1 / sqrt(2) * (1 - scale), 0, 0);
+  glTranslatef(0, 0, -height / 2);
+  glRotatef(-angle * 180 / M_PI, 0, 0, 1);
+  glBegin(GL_QUAD_STRIP);
+  for (int i = 0; i <= segments; i++)
+  {
+    float x = radius * cos(i * angle_stepsize);
+    float y = radius * sin(i * angle_stepsize);
+    float z = 0;
+    glVertex3f(x, y, z);
+    glVertex3f(x, y, z + height);
+  }
+  glEnd();
+  glPopMatrix();
+}
+
+void drawCylinders()
+{
+  glPushMatrix();
+  glColor3f(1, 1, 0); // yellow
+
+  // middle 4 cylinders
+  glRotatef(-45, 0, 1, 0);
   for (int i = 0; i < 4; i++)
   {
-    if (i % 2)
-      glColor3f(0, 1, 0);
-    else
-      glColor3f(0, 0, 1);
+    drawCylinder();
     glRotatef(90, 0, 1, 0);
-    drawSphereSide(subdivision, radius);
   }
 
-  glColor3f(1, 0, 0);
-  glRotatef(90, 0, 0, 1);
-  drawSphereSide(subdivision, radius);
-  glRotatef(180, 0, 0, 1);
-  drawSphereSide(subdivision, radius);
+  // left
+  glRotatef(90, 1, 0, 1);
+  for (int i = 0; i < 4; i++)
+  {
+    drawCylinder();
+    glRotatef(90, 0, 1, 0);
+  }
+
+  // r.
+  glRotatef(90, 1, 0, -1);
+  for (int i = 0; i < 4; i++)
+  {
+    drawCylinder();
+    glRotatef(90, 0, 1, 0);
+  }
+
   glPopMatrix();
 }
 
@@ -205,6 +304,11 @@ void drawSphere(int subdivision = 5, int radius = 1)
     whenever the window needs to be re-painted. */
 void display()
 {
+  // r = (l-pos) x u
+  r.x = (l.y - pos.y) * u.z - (l.z - pos.z) * u.y;
+  r.y = (l.z - pos.z) * u.x - (l.x - pos.x) * u.z;
+  r.z = (l.x - pos.x) * u.y - (l.y - pos.y) * u.x;
+
   // glClear(GL_COLOR_BUFFER_BIT);            // Clear the color buffer (background)
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glMatrixMode(GL_MODELVIEW); // To operate on Model-View matrix
@@ -214,12 +318,19 @@ void display()
   // gluLookAt(0,0,0, 0,0,-100, 0,1,0);
 
   // control viewing (or camera)
-  gluLookAt(eyex, eyey, eyez,
-            centerx, centery, centerz,
-            upx, upy, upz);
+  // gluLookAt(eyex, eyey, eyez,
+  //           centerx, centery, centerz,
+  //           upx, upy, upz);
+  gluLookAt(pos.x, pos.y, pos.z,
+            pos.x + l.x, pos.y + l.y, pos.z + l.z,
+            u.x, u.y, u.z);
+
+  // rotation for a, d buttons
+  glRotatef(rotate_y, 0, 1, 0);
   // draw
-  drawAxes();
-  // drawSphere();
+  // drawAxes();
+  drawSphere();
+  drawCylinders();
   drawOctahedron();
 
   glutSwapBuffers(); // Render now
@@ -255,26 +366,129 @@ void reshapeListener(GLsizei width, GLsizei height)
 void keyboardListener(unsigned char key, int x, int y)
 {
   double v = 0.25;
-  double lx = centerx - eyex;
-  double lz = centerz - eyez;
+  // float lengthl = sqrt(l.x * l.x + l.y * l.y + l.z * l.z);
+  // float lengthr = sqrt(r.x * r.x + r.y * r.y + r.z * r.z);
+  // float lengthu = sqrt(u.x * u.x + u.y * u.y + u.z * u.z);
+  double rate = 0.01;
   double s;
+
+  c.x = pos.x + l.x;
+  c.y = pos.y + l.y;
+  c.z = pos.z + l.z;
 
   switch (key)
   {
+  // control translation
+  case '1':
+    r.x = r.x * cos(rate) + l.x * sin(rate);
+    r.y = r.y * cos(rate) + l.y * sin(rate);
+    r.z = r.z * cos(rate) + l.z * sin(rate);
+
+    l.x = l.x * cos(rate) - r.x * sin(rate);
+    l.y = l.y * cos(rate) - r.y * sin(rate);
+    l.z = l.z * cos(rate) - r.z * sin(rate);
+    break;
+
+  case '2':
+    r.x = r.x * cos(-rate) + l.x * sin(-rate);
+    r.y = r.y * cos(-rate) + l.y * sin(-rate);
+    r.z = r.z * cos(-rate) + l.z * sin(-rate);
+
+    l.x = l.x * cos(-rate) - r.x * sin(-rate);
+    l.y = l.y * cos(-rate) - r.y * sin(-rate);
+    l.z = l.z * cos(-rate) - r.z * sin(-rate);
+    break;
+
+  case '3':
+    l.x = l.x * cos(rate) + u.x * sin(rate);
+    l.y = l.y * cos(rate) + u.y * sin(rate);
+    l.z = l.z * cos(rate) + u.z * sin(rate);
+
+    u.x = u.x * cos(rate) - l.x * sin(rate);
+    u.y = u.y * cos(rate) - l.y * sin(rate);
+    u.z = u.z * cos(rate) - l.z * sin(rate);
+    break;
+
+  case '4':
+    l.x = l.x * cos(-rate) + u.x * sin(-rate);
+    l.y = l.y * cos(-rate) + u.y * sin(-rate);
+    l.z = l.z * cos(-rate) + u.z * sin(-rate);
+
+    u.x = u.x * cos(-rate) - l.x * sin(-rate);
+    u.y = u.y * cos(-rate) - l.y * sin(-rate);
+    u.z = u.z * cos(-rate) - l.z * sin(-rate);
+    break;
+
+  case '5':
+    u.x = u.x * cos(rate) + r.x * sin(rate);
+    u.y = u.y * cos(rate) + r.y * sin(rate);
+    u.z = u.z * cos(rate) + r.z * sin(rate);
+
+    r.x = r.x * cos(rate) - u.x * sin(rate);
+    r.y = r.y * cos(rate) - u.y * sin(rate);
+    r.z = r.z * cos(rate) - u.z * sin(rate);
+    break;
+
+  case '6':
+    u.x = u.x * cos(-rate) + r.x * sin(-rate);
+    u.y = u.y * cos(-rate) + r.y * sin(-rate);
+    u.z = u.z * cos(-rate) + r.z * sin(-rate);
+
+    r.x = r.x * cos(-rate) - u.x * sin(-rate);
+    r.y = r.y * cos(-rate) - u.y * sin(-rate);
+    r.z = r.z * cos(-rate) - u.z * sin(-rate);
+    break;
+
   // control viewing (or camera)
   case 'w':
-    eyey += v;
+    // move up without changing reference point
+    pos.x += v * u.x;
+    pos.y += v * u.y;
+    pos.z += v * u.z;
+
+    l.x = c.x - pos.x;
+    l.y = c.y - pos.y;
+    l.z = c.z - pos.z;
     break;
   case 's':
-    eyey -= v;
+    // move down without changing reference point
+    pos.x -= v * u.x;
+    pos.y -= v * u.y;
+    pos.z -= v * u.z;
+
+    l.x = c.x - pos.x;
+    l.y = c.y - pos.y;
+    l.z = c.z - pos.z;
+    break;
+  case 'a':
+    // rotate the object in the clockwise direction about its own axis
+    // pos.x += v * (-u.y*l.z);
+    // pos.z += v * (l.x*u.y);
+
+    // l.x = c.x - pos.x;
+    // l.z = c.z - pos.z;
+
+    rotate_y -= 5;
+    break;
+  case 'd':
+    // rotate the object in the anti-clockwise direction about its own axis
+    // pos.x += v * (u.y*l.z);
+    // pos.z += v * (-l.x*u.y);
+
+    // l.x = c.x - pos.x;
+    // l.z = c.z - pos.z;
+
+    rotate_y += 5;
     break;
 
   // control the transformation
   case ',': // to sphere
-    if (scale < 1) scale += STEP_SCALE;
+    if (scale < 1)
+      scale += STEP_SCALE;
     break;
   case '.': // to octahedron
-    if (scale > 0) scale -= STEP_SCALE;
+    if (scale > 0)
+      scale -= STEP_SCALE;
     break;
 
   // control exit
@@ -285,50 +499,48 @@ void keyboardListener(unsigned char key, int x, int y)
   default:
     break;
   }
+
   glutPostRedisplay(); // Post a paint request to activate display()
 }
 
 /* Callback handler for special-key event */
 void specialKeyListener(int key, int x, int y)
 {
-  double v = 0.25;
-  double lx = centerx - eyex;
-  double lz = centerz - eyez;
-  double s;
+  float length;
   switch (key)
   {
-    // case GLUT_KEY_UP:		//down arrow key
-    // 		pos.x+=l.x;
-    // 		pos.y+=l.y;
-    // 		pos.z+=l.z;
-    // 		break;
-    // 	case GLUT_KEY_DOWN:		// up arrow key
-    // 		pos.x-=l.x;
-    // 		pos.y-=l.y;
-    // 		pos.z-=l.z;
-    // 		break;
+    case GLUT_KEY_UP:
+    		pos.x+=l.x;
+    		pos.y+=l.y;
+    		pos.z+=l.z;
+    		break;
+    	case GLUT_KEY_DOWN:
+    		pos.x-=l.x;
+    		pos.y-=l.y;
+    		pos.z-=l.z;
+    		break;
 
-    // 	case GLUT_KEY_RIGHT:
-    // 		pos.x+=r.x;
-    // 		pos.y+=r.y;
-    // 		pos.z+=r.z;
-    // 		break;
-    // 	case GLUT_KEY_LEFT :
-    // 		pos.x-=r.x;
-    // 		pos.y-=r.y;
-    // 		pos.z-=r.z;
-    // 		break;
+    	case GLUT_KEY_RIGHT:
+    		pos.x+=r.x;
+    		pos.y+=r.y;
+    		pos.z+=r.z;
+    		break;
+    	case GLUT_KEY_LEFT:
+    		pos.x-=r.x;
+    		pos.y-=r.y;
+    		pos.z-=r.z;
+    		break;
 
-    // 	case GLUT_KEY_PAGE_UP:
-    //     pos.x+=u.x;
-    // 		pos.y+=u.y;
-    // 		pos.z+=u.z;
-    // 		break;
-    // 	case GLUT_KEY_PAGE_DOWN:
-    //     pos.x-=u.x;
-    // 		pos.y-=u.y;
-    // 		pos.z-=u.z;
-    // 		break;
+    	case GLUT_KEY_PAGE_UP:
+        pos.x+=u.x;
+    		pos.y+=u.y;
+    		pos.z+=u.z;
+    		break;
+    	case GLUT_KEY_PAGE_DOWN:
+        pos.x-=u.x;
+    		pos.y-=u.y;
+    		pos.z-=u.z;
+    		break;
 
   default:
     break;
@@ -340,6 +552,19 @@ void specialKeyListener(int key, int x, int y)
 /* Main function: GLUT runs as a console application starting at main()  */
 int main(int argc, char **argv)
 {
+  pos.x = 2;
+  pos.y = 2;
+  pos.z = 2;
+  l.x = -2;
+  l.y = -2;
+  l.z = -2;
+  u.x = 0;
+  u.y = 1;
+  u.z = 0;
+  // r.x = 1;
+  // r.y = 0;
+  // r.z = 0;
+
   glutInit(&argc, argv);                                    // Initialize GLUT
   glutInitWindowSize(640, 640);                             // Set the window's initial width & height
   glutInitWindowPosition(50, 50);                           // Position the window's initial top-left corner

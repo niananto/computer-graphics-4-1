@@ -1,0 +1,7 @@
+# depslib dependency file v1.0
+1687364375 source:d:\4-1\cse 410 - computer graphics sessional\test\main.cpp
+	<stdio.h>
+	<stdlib.h>
+	<math.h>
+	<GL/glut.h>
+
