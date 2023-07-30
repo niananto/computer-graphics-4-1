@@ -11,7 +11,7 @@ import numpy as np
 EPS = 1e-6
 SUBMISSION_DIR = 'submissions'
 TEST_DIR = 'test_cases'
-CONFIG = json.load(open('config.json'))
+# CONFIG = json.load(open('config.json'))
 
 test_scene_files = glob.glob(f'{TEST_DIR}/*/scene.txt')
 n_test = len(test_scene_files)
@@ -35,7 +35,6 @@ def compare_file(correct, output):
     difference = np.abs(correct_floats - ouput_floats)
     mismatch = (difference > EPS).astype(np.int8)
     return mismatch.sum()
-
 
 for submission in submissions:
     roll = submission[-11:-4]
