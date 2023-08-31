@@ -11,12 +11,28 @@ public:
     double x, y, z;
     Point();
     Point(double x, double y, double z);
+    Point* copy();
     void normalize();
     Point* add(Point *p);
     Point* subtract(Point *p);
     Point* multiply(double scalar);
     Point* cross(Point *p);
     double dot(Point *p);
+};
+
+class Color {
+public:
+    double r, g, b;
+    Color();
+    Color(double r, double g, double b);
+};
+
+class Ray {
+public:
+    Point *start, *dir;
+    Ray(Point *start, Point *dir);
+    Point* getPoint(double t);
+    ~Ray();
 };
 
 class LightCoefficients {
@@ -30,11 +46,6 @@ public:
     LightCoefficients lightCoefficients;
 };
 
-class Color {
-public:
-    double r, g, b;
-};
-
 class Object {
 public:
     string objectType;
@@ -43,6 +54,7 @@ public:
     double shininess;
 
     virtual void draw() {}
+    virtual Color* intersect(Ray *ray) {return NULL;}
 };
 
 class Pyramid : public Object {
@@ -52,6 +64,7 @@ public:
     double height;
 
     void draw();
+    Color* intersect(Ray *ray) {return NULL;}
 };
 
 class Sphere : public Object {
@@ -62,6 +75,7 @@ public:
     double radius;
 
     void draw();
+    Color* intersect(Ray *ray);
 };
 
 class Cube : public Object {
@@ -70,6 +84,7 @@ public:
     double side;
 
     void draw();
+    Color* intersect(Ray *ray) {return NULL;}
 };
 
 class LightSource {
@@ -77,19 +92,149 @@ public:
     string lightType;
     Point position;
     double falloff;
-    // Color color;
+    Color color;
+    
+    LightSource(string);
+    virtual void draw() {}
 };
 
 class NormalLightSource : public LightSource {
 public:
-
+    NormalLightSource();
+    void draw();
 };
 
 class SpotLightSource : public LightSource {
 public:
     Point direction;
     double cutoffAngle;
+
+    SpotLightSource();
+    void draw();
 };
+
+/////////////////////////// LIGHTSOURCE //////////////////////////////
+
+LightSource::LightSource(string lightType) {
+    this->lightType = lightType;
+    this->color = Color(1, 1, 1);
+}
+
+///////////////////////// NORMAL LIGHTSOURCE /////////////////////////
+
+NormalLightSource::NormalLightSource() : LightSource("normal") {}
+
+void NormalLightSource::draw() {
+    glPushMatrix();
+    {
+        glColor3f(color.r, color.g, color.b);
+        glTranslatef(position.x, position.y, position.z);
+        glutSolidSphere(3, 20, 20);
+    }
+    glPopMatrix();
+}
+
+///////////////////////// SPOT LIGHTSOURCE /////////////////////////
+
+SpotLightSource::SpotLightSource() : LightSource("spot") {}
+
+void SpotLightSource::draw() {
+    glPushMatrix();
+    {
+        glColor3f(color.r, color.g, color.b);
+        glTranslatef(position.x, position.y, position.z);
+        glutSolidSphere(3, 20, 20);
+    }
+    glPopMatrix();
+}
+
+//////////////////////////////// POINT ////////////////////////////////
+
+Point::Point() {
+    this->x = 0;
+    this->y = 0;
+    this->z = 0;
+}
+
+Point::Point(double x, double y, double z) {
+    this->x = x;
+    this->y = y;
+    this->z = z;
+}
+
+Point* Point::copy() {
+    return new Point(x, y, z);
+}
+
+void Point::normalize() {
+    double length = sqrt(x * x + y * y + z * z);
+    x /= length;
+    y /= length;
+    z /= length;
+}
+
+Point* Point::add(Point *p) {
+    double x = this->x + p->x;
+    double y = this->y + p->y;
+    double z = this->z + p->z;
+    return new Point(x, y, z);
+}
+
+Point* Point::subtract(Point *p) {
+    double x = this->x - p->x;
+    double y = this->y - p->y;
+    double z = this->z - p->z;
+    return new Point(x, y, z);
+}
+
+Point* Point::multiply(double scalar) {
+    double x = this->x * scalar;
+    double y = this->y * scalar;
+    double z = this->z * scalar;
+    return new Point(x, y, z);
+}
+
+Point* Point::cross(Point *p) {
+    double x = this->y * p->z - this->z * p->y;
+    double y = this->z * p->x - this->x * p->z;
+    double z = this->x * p->y - this->y * p->x;
+    return new Point(x, y, z);
+}
+
+double Point::dot(Point *p) {
+    return this->x * p->x + this->y * p->y + this->z * p->z;
+}
+
+//////////////////////////////// COLOR ////////////////////////////////
+
+Color::Color() {
+    this->r = 0;
+    this->g = 0;
+    this->b = 0;
+}
+
+Color::Color(double r, double g, double b) {
+    this->r = r;
+    this->g = g;
+    this->b = b;
+}
+
+//////////////////////////////// RAY ////////////////////////////////
+
+Ray::Ray(Point *start, Point *dir) {
+    this->start = start;
+    this->dir = dir;
+    this->dir->normalize();
+}
+
+Point* Ray::getPoint(double t) {
+    return start->add(dir->multiply(t));
+}
+
+Ray::~Ray() {
+    delete start;
+    delete dir;
+}
 
 /////////////////////////////// PYRAMID ///////////////////////////////
 
@@ -112,22 +257,22 @@ void Pyramid::draw()
 
         glTranslatef(lowest.x, lowest.y, lowest.z);
         // width will affect x and z, height will affect y
-        glScalef(width/sqrt(2), height, width/sqrt(2));
+        glScalef(width/sqrt(2), width/sqrt(2), height);
 
         drawTriangle();
-        glRotatef(90, 0, 1, 0);
+        glRotatef(90, 0, 0, 1);
         drawTriangle();
-        glRotatef(90, 0, 1, 0);
+        glRotatef(90, 0, 0, 1);
         drawTriangle();
-        glRotatef(90, 0, 1, 0);
+        glRotatef(90, 0, 0, 1);
         drawTriangle();
-        glRotatef(90, 0, 1, 0);
+        glRotatef(90, 0, 0, 1);
 
         glBegin(GL_QUADS);
         glVertex3f(1, 0, 0);
-        glVertex3f(0, 0, -1);
+        glVertex3f(0, -1, 0);
         glVertex3f(-1, 0, 0);
-        glVertex3f(0, 0, 1);
+        glVertex3f(0, 1, 0);
         glEnd();
     }
     glPopMatrix();
@@ -237,6 +382,23 @@ void Sphere::draw()
     glPopMatrix();
 }
 
+// intersection calculation
+Color* Sphere::intersect(Ray *ray) {
+    Point *centerToStart = ray->start->subtract(&center);
+    double a = 1; /*ray->dir.dot(&ray->dir)*/
+    double b = 2 * ray->dir->dot(centerToStart);
+    double c = centerToStart->dot(centerToStart) - radius * radius;
+    double discriminant = b * b - 4 * a * c;
+    if (discriminant < 0) {
+        return NULL;
+    }
+    double t1 = (-b + sqrt(discriminant)) / (2 * a);
+    double t2 = (-b - sqrt(discriminant)) / (2 * a);
+    double t = min(t1, t2);
+    // return ray->getPoint(t);
+    return &color;
+}
+
 /////////////////////////////// CUBE ///////////////////////////////
 
 void Cube::draw()
@@ -248,41 +410,43 @@ void Cube::draw()
         glScalef(side, side, side);
 
         glBegin(GL_QUADS);
-        // front
-        glVertex3f(0, 0, 0);
-        glVertex3f(1, 0, 0);
-        glVertex3f(1, 1, 0);
-        glVertex3f(0, 1, 0);
+        {
+            // bottom
+            glVertex3f(0, 0, 0);
+            glVertex3f(1, 0, 0);
+            glVertex3f(1, 1, 0);
+            glVertex3f(0, 1, 0);
 
-        // back
-        glVertex3f(0, 0, 1);
-        glVertex3f(1, 0, 1);
-        glVertex3f(1, 1, 1);
-        glVertex3f(0, 1, 1);
+            // top
+            glVertex3f(0, 0, 1);
+            glVertex3f(1, 0, 1);
+            glVertex3f(1, 1, 1);
+            glVertex3f(0, 1, 1);
 
-        // left
-        glVertex3f(0, 0, 0);
-        glVertex3f(0, 0, 1);
-        glVertex3f(0, 1, 1);
-        glVertex3f(0, 1, 0);
+            // left
+            glVertex3f(0, 0, 0);
+            glVertex3f(0, 0, 1);
+            glVertex3f(0, 1, 1);
+            glVertex3f(0, 1, 0);
 
-        // right
-        glVertex3f(1, 0, 0);
-        glVertex3f(1, 0, 1);
-        glVertex3f(1, 1, 1);
-        glVertex3f(1, 1, 0);
+            // right
+            glVertex3f(1, 0, 0);
+            glVertex3f(1, 0, 1);
+            glVertex3f(1, 1, 1);
+            glVertex3f(1, 1, 0);
 
-        // top
-        glVertex3f(0, 1, 0);
-        glVertex3f(1, 1, 0);
-        glVertex3f(1, 1, 1);
-        glVertex3f(0, 1, 1);
+            // back
+            glVertex3f(0, 1, 0);
+            glVertex3f(1, 1, 0);
+            glVertex3f(1, 1, 1);
+            glVertex3f(0, 1, 1);
 
-        // bottom
-        glVertex3f(0, 0, 0);
-        glVertex3f(1, 0, 0);
-        glVertex3f(1, 0, 1);
-        glVertex3f(0, 0, 1);
+            // front
+            glVertex3f(0, 0, 0);
+            glVertex3f(1, 0, 0);
+            glVertex3f(1, 0, 1);
+            glVertex3f(0, 0, 1);
+        }
         glEnd();
     // }
     glPopMatrix();

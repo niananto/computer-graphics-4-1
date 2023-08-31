@@ -1,35 +1,30 @@
 #include "1805093_def.hpp"
 #include "1805093_utils.hpp"
-#include "1805093_point.h"
 
-int nearPlane, farPlane, fovY, aspectRatio;
+int nearPlane, farPlane, fovY, fovX, aspectRatio;
 int recursionLevel, imageWidth, imageHeight;
 int checkerBoardWidth, checkerBoardHeight;
 vector<double> checkerBoardCoeff(3);
 vector<Object *> objects;
 vector<LightSource *> lights;
 
-Point pos; // position of the eye
-Point l;   // look/forward direction
-Point r;   // right direction - dynamically updated in the display function
-Point u;   // up direction
-Point c;   // center of the scene - temp use
+Point* pos; // position of the eye
+Point* look;   // look/forward direction
+Point* r8;   // r8 direction - dynamically updated in the display function
+Point* up;   // up direction
+Point* center;   // center of the scene - temp use
 
-GLint rotate_y = 0;
+GLint rotate_z = 0;
 
 void init()
 {
-    pos.x = 0;
-    pos.y = -200;
-    pos.z = 40;
-    l.x = 0;
-    l.y = 50;
-    l.z = -10;
-    l.normalize();
-    r.x = 1;
-    r.y = 0;
-    r.z = 0;
-    u = *(r.cross(&l));
+    pos = new Point(0, -200, 100);
+    look = new Point(0, 50, -10);
+    look->normalize();
+    r8 = new Point(1, 0, 0);
+    r8->normalize();
+    up = r8->cross(look);
+    center = new Point();
 
     getInputs();
 
@@ -38,6 +33,25 @@ void init()
     glLoadIdentity();
     gluPerspective(fovY, aspectRatio, nearPlane, farPlane);
     glEnable(GL_DEPTH_TEST);
+}
+
+void clearMem()
+{
+    delete pos;
+    delete look;
+    delete r8;
+    delete up;
+    delete center;
+
+    for (Object *object : objects)
+    {
+        delete object;
+    }
+
+    for (LightSource *light : lights)
+    {
+        delete light;
+    }
 }
 
 void drawAxes()
@@ -74,13 +88,6 @@ void drawChecker()
             else
                 glColor3f(0, 0, 0);
 
-            // glBegin(GL_QUADS);
-            // glVertex3f(i * checkerBoardWidth, 0, j * checkerBoardHeight);
-            // glVertex3f((i + 1) * checkerBoardWidth, 0, j * checkerBoardHeight);
-            // glVertex3f((i + 1) * checkerBoardWidth, 0, (j + 1) * checkerBoardHeight);
-            // glVertex3f(i * checkerBoardWidth, 0, (j + 1) * checkerBoardHeight);
-
-            // checkerboard in XY plane
             glBegin(GL_QUADS);
             glVertex3f(i * checkerBoardWidth, j * checkerBoardHeight, 0);
             glVertex3f((i + 1) * checkerBoardWidth, j * checkerBoardHeight, 0);
@@ -96,33 +103,35 @@ void drawChecker()
     whenever the window needs to be re-painted. */
 void display()
 {
-    // r = (l-pos) x u
-    r.x = (l.y - pos.y) * u.z - (l.z - pos.z) * u.y;
-    r.y = (l.z - pos.z) * u.x - (l.x - pos.x) * u.z;
-    r.z = (l.x - pos.x) * u.y - (l.y - pos.y) * u.x;
-    // normalize r
-    float scale = 1 / sqrt(r.x * r.x + r.y * r.y + r.z * r.z);
-    r.x *= scale;
-    r.y *= scale;
-    r.z *= scale;
+    // // r = (l-pos) x u
+    // r8->x = (look->y - pos->y) * up->z - (look->z - pos->z) * up->y;
+    // r8->y = (look->z - pos->z) * up->x - (look->x - pos->x) * up->z;
+    // r8->z = (look->x - pos->x) * up->y - (look->y - pos->y) * up->x;
+    // // normalize r
+    // r8->normalize();
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    gluLookAt(pos.x, pos.y, pos.z,
-              pos.x + l.x, pos.y + l.y, pos.z + l.z,
-              u.x, u.y, u.z);
+    gluLookAt(pos->x, pos->y, pos->z,
+              pos->x + look->x, pos->y + look->y, pos->z + look->z,
+              up->x, up->y, up->z);
 
     // rotation for a, d buttons
-    glRotatef(rotate_y, 0, 1, 0);
+    glRotatef(rotate_z, 0, 0, 1);
 
     // draw
     drawAxes();
     drawChecker();
     for (Object *object : objects)
     {
+        // if (object->objectType == "pyramid")
         object->draw();
+    }
+    for (LightSource *light : lights)
+    {
+        light->draw();
     }
 
     glutSwapBuffers();
@@ -147,120 +156,121 @@ void keyboardListener(unsigned char key, int x, int y)
     double rate = 0.05;
     double s;
 
-    c.x = pos.x + l.x;
-    c.y = pos.y + l.y;
-    c.z = pos.z + l.z;
+    center->x = pos->x + look->x;
+    center->y = pos->y + look->y;
+    center->z = pos->z + look->z;
 
     switch (key)
     {
     // control translation
     case '1':
-        r.x = r.x * cos(rate) + l.x * sin(rate);
-        r.y = r.y * cos(rate) + l.y * sin(rate);
-        r.z = r.z * cos(rate) + l.z * sin(rate);
+        r8->x = r8->x * cos(rate) + look->x * sin(rate);
+        r8->y = r8->y * cos(rate) + look->y * sin(rate);
+        r8->z = r8->z * cos(rate) + look->z * sin(rate);
 
-        l.x = l.x * cos(rate) - r.x * sin(rate);
-        l.y = l.y * cos(rate) - r.y * sin(rate);
-        l.z = l.z * cos(rate) - r.z * sin(rate);
+        look->x = look->x * cos(rate) - r8->x * sin(rate);
+        look->y = look->y * cos(rate) - r8->y * sin(rate);
+        look->z = look->z * cos(rate) - r8->z * sin(rate);
         break;
 
     case '2':
-        r.x = r.x * cos(-rate) + l.x * sin(-rate);
-        r.y = r.y * cos(-rate) + l.y * sin(-rate);
-        r.z = r.z * cos(-rate) + l.z * sin(-rate);
+        r8->x = r8->x * cos(-rate) + look->x * sin(-rate);
+        r8->y = r8->y * cos(-rate) + look->y * sin(-rate);
+        r8->z = r8->z * cos(-rate) + look->z * sin(-rate);
 
-        l.x = l.x * cos(-rate) - r.x * sin(-rate);
-        l.y = l.y * cos(-rate) - r.y * sin(-rate);
-        l.z = l.z * cos(-rate) - r.z * sin(-rate);
+        look->x = look->x * cos(-rate) - r8->x * sin(-rate);
+        look->y = look->y * cos(-rate) - r8->y * sin(-rate);
+        look->z = look->z * cos(-rate) - r8->z * sin(-rate);
         break;
 
     case '3':
-        l.x = l.x * cos(rate) + u.x * sin(rate);
-        l.y = l.y * cos(rate) + u.y * sin(rate);
-        l.z = l.z * cos(rate) + u.z * sin(rate);
+        look->x = look->x * cos(rate) + up->x * sin(rate);
+        look->y = look->y * cos(rate) + up->y * sin(rate);
+        look->z = look->z * cos(rate) + up->z * sin(rate);
 
-        u.x = u.x * cos(rate) - l.x * sin(rate);
-        u.y = u.y * cos(rate) - l.y * sin(rate);
-        u.z = u.z * cos(rate) - l.z * sin(rate);
+        up->x = up->x * cos(rate) - look->x * sin(rate);
+        up->y = up->y * cos(rate) - look->y * sin(rate);
+        up->z = up->z * cos(rate) - look->z * sin(rate);
         break;
 
     case '4':
-        l.x = l.x * cos(-rate) + u.x * sin(-rate);
-        l.y = l.y * cos(-rate) + u.y * sin(-rate);
-        l.z = l.z * cos(-rate) + u.z * sin(-rate);
+        look->x = look->x * cos(-rate) + up->x * sin(-rate);
+        look->y = look->y * cos(-rate) + up->y * sin(-rate);
+        look->z = look->z * cos(-rate) + up->z * sin(-rate);
 
-        u.x = u.x * cos(-rate) - l.x * sin(-rate);
-        u.y = u.y * cos(-rate) - l.y * sin(-rate);
-        u.z = u.z * cos(-rate) - l.z * sin(-rate);
+        up->x = up->x * cos(-rate) - look->x * sin(-rate);
+        up->y = up->y * cos(-rate) - look->y * sin(-rate);
+        up->z = up->z * cos(-rate) - look->z * sin(-rate);
         break;
 
     case '5':
-        u.x = u.x * cos(rate) + r.x * sin(rate);
-        u.y = u.y * cos(rate) + r.y * sin(rate);
-        u.z = u.z * cos(rate) + r.z * sin(rate);
+        up->x = up->x * cos(rate) + r8->x * sin(rate);
+        up->y = up->y * cos(rate) + r8->y * sin(rate);
+        up->z = up->z * cos(rate) + r8->z * sin(rate);
 
-        r.x = r.x * cos(rate) - u.x * sin(rate);
-        r.y = r.y * cos(rate) - u.y * sin(rate);
-        r.z = r.z * cos(rate) - u.z * sin(rate);
+        r8->x = r8->x * cos(rate) - up->x * sin(rate);
+        r8->y = r8->y * cos(rate) - up->y * sin(rate);
+        r8->z = r8->z * cos(rate) - up->z * sin(rate);
         break;
 
     case '6':
-        u.x = u.x * cos(-rate) + r.x * sin(-rate);
-        u.y = u.y * cos(-rate) + r.y * sin(-rate);
-        u.z = u.z * cos(-rate) + r.z * sin(-rate);
+        up->x = up->x * cos(-rate) + r8->x * sin(-rate);
+        up->y = up->y * cos(-rate) + r8->y * sin(-rate);
+        up->z = up->z * cos(-rate) + r8->z * sin(-rate);
 
-        r.x = r.x * cos(-rate) - u.x * sin(-rate);
-        r.y = r.y * cos(-rate) - u.y * sin(-rate);
-        r.z = r.z * cos(-rate) - u.z * sin(-rate);
+        r8->x = r8->x * cos(-rate) - up->x * sin(-rate);
+        r8->y = r8->y * cos(-rate) - up->y * sin(-rate);
+        r8->z = r8->z * cos(-rate) - up->z * sin(-rate);
         break;
 
     case '0':
         // start raytracing
         // and output a bmp
+        generateBmp();
         break;
 
     // control viewing (or camera)
     case 'w':
         // move up without changing reference point
-        pos.x += v * u.x;
-        pos.y += v * u.y;
-        pos.z += v * u.z;
+        pos->x += v * up->x;
+        pos->y += v * up->y;
+        pos->z += v * up->z;
 
-        l.x = c.x - pos.x;
-        l.y = c.y - pos.y;
-        l.z = c.z - pos.z;
+        look->x = center->x - pos->x;
+        look->y = center->y - pos->y;
+        look->z = center->z - pos->z;
         break;
     case 's':
         // move down without changing reference point
-        pos.x -= v * u.x;
-        pos.y -= v * u.y;
-        pos.z -= v * u.z;
+        pos->x -= v * up->x;
+        pos->y -= v * up->y;
+        pos->z -= v * up->z;
 
-        l.x = c.x - pos.x;
-        l.y = c.y - pos.y;
-        l.z = c.z - pos.z;
+        look->x = center->x - pos->x;
+        look->y = center->y - pos->y;
+        look->z = center->z - pos->z;
         break;
     case 'a':
         // rotate the object in the clockwise direction about its own axis
-        // pos.x += v * (-u.y*l.z);
-        // pos.y += v * (l.x*u.y);
+        // pos->x += v * (-up->y*look->z);
+        // pos->y += v * (look->x*up->y);
 
-        // l.x = c.x - pos.x;
-        // l.y = c.y - pos.y;
-        // l.normalize();
+        // look->x = center->x - pos->x;
+        // look->y = center->y - pos->y;
+        // look->normalize();
 
-        rotate_y -= 5;
+        rotate_z -= 5;
         break;
     case 'd':
         // rotate the object in the anti-clockwise direction about its own axis
-        // pos.x += v * (u.y*l.z);
-        // pos.z += v * (-l.x*u.y);
+        // pos->x += v * (up->y*look->z);
+        // pos->z += v * (-look->x*up->y);
 
-        // l.x = c.x - pos.x;
-        // l.z = c.z - pos.z;
-        // l.normalize();
+        // look->x = center->x - pos->x;
+        // look->z = center->z - pos->z;
+        // look->normalize();
 
-        rotate_y += 5;
+        rotate_z += 5;
         break;
 
     // control exit
@@ -281,36 +291,36 @@ void specialKeyListener(int key, int x, int y)
     switch (key)
     {
     case GLUT_KEY_UP:
-        pos.x += l.x;
-        pos.y += l.y;
-        pos.z += l.z;
+        pos->x += look->x;
+        pos->y += look->y;
+        pos->z += look->z;
         break;
     case GLUT_KEY_DOWN:
-        pos.x -= l.x;
-        pos.y -= l.y;
-        pos.z -= l.z;
+        pos->x -= look->x;
+        pos->y -= look->y;
+        pos->z -= look->z;
         break;
 
     case GLUT_KEY_RIGHT:
-        pos.x += r.x;
-        pos.y += r.y;
-        pos.z += r.z;
+        pos->x += r8->x;
+        pos->y += r8->y;
+        pos->z += r8->z;
         break;
     case GLUT_KEY_LEFT:
-        pos.x -= r.x;
-        pos.y -= r.y;
-        pos.z -= r.z;
+        pos->x -= r8->x;
+        pos->y -= r8->y;
+        pos->z -= r8->z;
         break;
 
     case GLUT_KEY_PAGE_UP:
-        pos.x += u.x;
-        pos.y += u.y;
-        pos.z += u.z;
+        pos->x += up->x;
+        pos->y += up->y;
+        pos->z += up->z;
         break;
     case GLUT_KEY_PAGE_DOWN:
-        pos.x -= u.x;
-        pos.y -= u.y;
-        pos.z -= u.z;
+        pos->x -= up->x;
+        pos->y -= up->y;
+        pos->z -= up->z;
         break;
 
     default:
@@ -334,5 +344,6 @@ int main(int argc, char **argv)
     glutSpecialFunc(specialKeyListener);
     init();
     glutMainLoop();
+    clearMem();
     return 0;
 }
