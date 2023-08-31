@@ -30,6 +30,7 @@ public:
 class Ray {
 public:
     Point *start, *dir;
+    Color color;
     Ray(Point *start, Point *dir);
     Point* getPoint(double t);
     ~Ray();
@@ -54,7 +55,7 @@ public:
     double shininess;
 
     virtual void draw() {}
-    virtual Color* intersect(Ray *ray) {return NULL;}
+    virtual Color* intersect(Ray *ray, int recLevel) {return NULL;}
 };
 
 class Pyramid : public Object {
@@ -64,7 +65,7 @@ public:
     double height;
 
     void draw();
-    Color* intersect(Ray *ray) {return NULL;}
+    Color* intersect(Ray *ray, int recLevel) {return NULL;}
 };
 
 class Sphere : public Object {
@@ -75,7 +76,7 @@ public:
     double radius;
 
     void draw();
-    Color* intersect(Ray *ray);
+    Color* intersect(Ray *ray, int recLevel);
 };
 
 class Cube : public Object {
@@ -84,7 +85,7 @@ public:
     double side;
 
     void draw();
-    Color* intersect(Ray *ray) {return NULL;}
+    Color* intersect(Ray *ray, int recLevel) {return NULL;}
 };
 
 class LightSource {
@@ -94,7 +95,7 @@ public:
     double falloff;
     Color color;
     
-    LightSource(string);
+    LightSource(string lightType);
     virtual void draw() {}
 };
 
@@ -112,41 +113,6 @@ public:
     SpotLightSource();
     void draw();
 };
-
-/////////////////////////// LIGHTSOURCE //////////////////////////////
-
-LightSource::LightSource(string lightType) {
-    this->lightType = lightType;
-    this->color = Color(1, 1, 1);
-}
-
-///////////////////////// NORMAL LIGHTSOURCE /////////////////////////
-
-NormalLightSource::NormalLightSource() : LightSource("normal") {}
-
-void NormalLightSource::draw() {
-    glPushMatrix();
-    {
-        glColor3f(color.r, color.g, color.b);
-        glTranslatef(position.x, position.y, position.z);
-        glutSolidSphere(3, 20, 20);
-    }
-    glPopMatrix();
-}
-
-///////////////////////// SPOT LIGHTSOURCE /////////////////////////
-
-SpotLightSource::SpotLightSource() : LightSource("spot") {}
-
-void SpotLightSource::draw() {
-    glPushMatrix();
-    {
-        glColor3f(color.r, color.g, color.b);
-        glTranslatef(position.x, position.y, position.z);
-        glutSolidSphere(3, 20, 20);
-    }
-    glPopMatrix();
-}
 
 //////////////////////////////// POINT ////////////////////////////////
 
@@ -225,6 +191,7 @@ Ray::Ray(Point *start, Point *dir) {
     this->start = start;
     this->dir = dir;
     this->dir->normalize();
+    color = Color(1, 1, 1);
 }
 
 Point* Ray::getPoint(double t) {
@@ -383,7 +350,7 @@ void Sphere::draw()
 }
 
 // intersection calculation
-Color* Sphere::intersect(Ray *ray) {
+Color* Sphere::intersect(Ray *ray, int recLevel) {
     Point *centerToStart = ray->start->subtract(&center);
     double a = 1; /*ray->dir.dot(&ray->dir)*/
     double b = 2 * ray->dir->dot(centerToStart);
@@ -449,5 +416,40 @@ void Cube::draw()
         }
         glEnd();
     // }
+    glPopMatrix();
+}
+
+/////////////////////////// LIGHTSOURCE //////////////////////////////
+
+LightSource::LightSource(string lightType) {
+    this->lightType = lightType;
+    this->color = Color(1, 1, 1);
+}
+
+///////////////////////// NORMAL LIGHTSOURCE /////////////////////////
+
+NormalLightSource::NormalLightSource() : LightSource("normal") {}
+
+void NormalLightSource::draw() {
+    glPushMatrix();
+    {
+        glColor3f(color.r, color.g, color.b);
+        glTranslatef(position.x, position.y, position.z);
+        glutSolidSphere(3, 20, 20);
+    }
+    glPopMatrix();
+}
+
+///////////////////////// SPOT LIGHTSOURCE /////////////////////////
+
+SpotLightSource::SpotLightSource() : LightSource("spot") {}
+
+void SpotLightSource::draw() {
+    glPushMatrix();
+    {
+        glColor3f(color.r, color.g, color.b);
+        glTranslatef(position.x, position.y, position.z);
+        glutSolidSphere(3, 20, 20);
+    }
     glPopMatrix();
 }

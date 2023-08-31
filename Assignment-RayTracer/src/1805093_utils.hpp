@@ -12,11 +12,11 @@ extern vector<double> checkerBoardCoeff;
 extern vector<Object *> objects;
 extern vector<LightSource *> lights;
 
-extern Point *pos;      // position of the eye
-extern Point *look;     // look/forward direction
-extern Point *r8;       // right direction - dynamically updated in the display function
-extern Point *up;       // up direction
-extern Point *center;   // center of the scene - temp use
+extern Point *pos;    // position of the eye
+extern Point *look;   // look/forward direction
+extern Point *r8;     // right direction - dynamically updated in the display function
+extern Point *up;     // up direction
+extern Point *center; // center of the scene - temp use
 
 void getInputs()
 {
@@ -172,6 +172,7 @@ void getInputs()
 
 void generateBmp()
 {
+    static int imgCount = 1;
     // cout << "pos: " << pos->x << " " << pos->y << " " << pos->z << endl;
     // cout << "look: " << look->x << " " << look->y << " " << look->z << endl;
     // cout << "r8: " << r8->x << " " << r8->y << " " << r8->z << endl;
@@ -185,8 +186,8 @@ void generateBmp()
 
     // declare pointBuffer
     vector<vector<Point *>> pointBuffer;
-    double dx = width / imageWidth;
-    double dy = height / imageHeight;
+    double dx = width / (double)imageWidth;
+    double dy = height / (double)imageHeight;
 
     // cout << "height: " << height << endl;
     // cout << "width: " << width << endl;
@@ -194,88 +195,75 @@ void generateBmp()
     // cout << "dy: " << dy << endl;
 
     // get the bottom left mid point
-    Point *bottomLeftMid = nearMidpoint->subtract(r8->multiply(width/2.0));
-    bottomLeftMid = bottomLeftMid->subtract(up->multiply(height/2.0));
-    bottomLeftMid = bottomLeftMid->add(r8->multiply(dx/2));
-    bottomLeftMid = bottomLeftMid->add(up->multiply(dy/2));
-    // cout << "bottomLeftMid: " << bottomLeftMid->x << " " << bottomLeftMid->y << " " << bottomLeftMid->z << endl;
+    Point *topLeftMid = nearMidpoint->subtract(r8->multiply(width / 2.0));
+    topLeftMid = topLeftMid->add(up->multiply(height / 2.0));
+    topLeftMid = topLeftMid->add(r8->multiply(dx / 2));
+    topLeftMid = topLeftMid->subtract(up->multiply(dy / 2));
+    // cout << "topLeftMid: " << topLeftMid->x << " " << topLeftMid->y << " " << topLeftMid->z << endl;
 
-    // for (int i = 0; i < imageHeight; i++)
-    // {
-    //     vector<Point *> row;
-    //     for (int j = 0; j < imageWidth; j++)
-    //     {
-    //         // top right
-    //         Point *topRight = nearMidpoint->add(r8->multiply(j * dx));
-    //         topRight = topRight->add(up->multiply(i * dy));
-    //         topRight = topRight->add(r8->multiply(dx/2));
-    //         topRight = topRight->add(up->multiply(dy/2));
-    //         row.push_back(topRight);
+    for (int i = 0; i < imageHeight; i++)
+    {
+        vector<Point *> row;
+        for (int j = 0; j < imageWidth; j++)
+        {
+            Point *point = topLeftMid->add(r8->multiply(j * dx));
+            point = point->subtract(up->multiply(i * dy));
+            row.push_back(point);
+        }
+        pointBuffer.push_back(row);
+    }
 
-    //         // top left
-    //         Point *topLeft = nearMidpoint->subtract(r8->multiply(j * dx));
-    //         topLeft = topLeft->add(up->multiply(i * dy));
-    //         topLeft = topLeft->subtract(r8->multiply(dx/2));
-    //         topLeft = topLeft->add(up->multiply(dy/2));
-    //         row.push_back(topLeft);
+    // declare colorBuffer
+    vector<vector<Color *>> colorBuffer;
+    for (int i = 0; i < imageHeight; i++)
+    {
+        vector<Color *> row;
+        for (int j = 0; j < imageWidth; j++)
+        {
+            row.push_back(new Color());
+        }
+        colorBuffer.push_back(row);
+    }
 
-    //         // bottom left
-    //         Point *bottomLeft = nearMidpoint->subtract(r8->multiply(j * dx));
-    //         bottomLeft = bottomLeft->subtract(up->multiply(i * dy));
-    //         bottomLeft = bottomLeft->subtract(r8->multiply(dx/2));
-    //         bottomLeft = bottomLeft->subtract(up->multiply(dy/2));
-    //         row.push_back(bottomLeft);
+    for (int i = 0; i < imageHeight; i++)
+    {
+        for (int j = 0; j < imageWidth; j++)
+        {
+            Ray *ray = new Ray(pos->copy(), pointBuffer[i][j]->subtract(pos));
 
-    //         // bottom right
-    //         Point *bottomRight = nearMidpoint->add(r8->multiply(j * dx));
-    //         bottomRight = bottomRight->subtract(up->multiply(i * dy));
-    //         bottomRight = bottomRight->add(r8->multiply(dx/2));
-    //         bottomRight = bottomRight->subtract(up->multiply(dy/2));
-    //         row.push_back(bottomRight);
-    //     }
-    //     pointBuffer.push_back(row);
-    // }
+            for (Object *object : objects)
+            {
+                if (object->objectType == "sphere")
+                {
+                    Color *color = object->intersect(ray, 0);
+                    if (color != NULL)
+                        colorBuffer[i][j] = color;
+                }
+            }
+        }
+    }
 
-    // // declare colorBuffer
-    // vector<vector<Color *>> colorBuffer;
-    // for (int i = 0; i < imageHeight/2; i++)
-    // {
-    //     vector<Color *> row;
-    //     for (int j = 0; j < imageWidth/2; j++)
-    //     {
-    //         row.push_back(new Color());
-    //         row.push_back(new Color());
-    //         row.push_back(new Color());
-    //         row.push_back(new Color());
-    //     }
-    //     colorBuffer.push_back(row);
-    // }
+    bitmap_image bmpFile(imageWidth, imageHeight);
+    for (int i = 0; i < imageHeight; i++)
+    {
+        for (int j = 0; j < imageWidth; j++)
+        {
+            bmpFile.set_pixel(j, i, 255*colorBuffer[i][j]->r, 255*colorBuffer[i][j]->g, 255*colorBuffer[i][j]->b);
+        }
+    }
 
-    // for (int i = 0; i < imageHeight; i++)
-    // {
-    //     for (int j = 0; j < imageWidth; j++)
-    //     {
-    //         Ray *ray = new Ray(pointBuffer[i][j]->copy(), pointBuffer[i][j]->subtract(pos));
+    bmpFile.save_image("out"+to_string(imgCount)+".bmp");
+    imgCount++;
 
-    //         for (Object* object : objects) {
-    //             if (object->objectType == "sphere") {
-    //                 colorBuffer[i][j] = object->intersect(ray);
-    //                 if (colorBuffer[i][j] == NULL) {
-    //                     break;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
+    cout << "image generated" << endl;
 
-    // bitmap_image bmpFile(imageWidth, imageHeight);
-    // for (int i=0; i<imageHeight; i++) {
-    //     for (int j=0; j<imageWidth; j++) {
-    //         bmpFile.set_pixel(j, i, colorBuffer[i][j]->r, colorBuffer[i][j]->g, colorBuffer[i][j]->b);
-    //     }
-    // }
-
-    // bmpFile.save_image("1805093_output.bmp");
-
-
+    // free memory
+    for (int i = 0; i < imageHeight; i++)
+    {
+        for (int j = 0; j < imageWidth; j++)
+        {
+            delete pointBuffer[i][j];
+            delete colorBuffer[i][j];
+        }
+    }
 }
