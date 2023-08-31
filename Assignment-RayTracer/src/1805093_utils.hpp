@@ -30,6 +30,7 @@ void getInputs()
     input >> board->width;
     board->height = board->width;
     input >> board->lightCoefficients.ambient >> board->lightCoefficients.diffuse >> board->lightCoefficients.reflection;
+    board->lightCoefficients.specular = 0;
     board->color = Color(1, 1, 1);
     board->shininess = 0;
     objects.push_back(board);
@@ -229,7 +230,7 @@ void generateBmp()
             Object *nearestObject = NULL;
             for (int k = 0; k < objects.size(); k++)
             {
-                double t = objects[k]->intersect(ray, 0);
+                double t = objects[k]->handleIntersecttion(ray);
                 if (t > 0 && t < tMin)
                 {
                     tMin = t;
@@ -238,54 +239,110 @@ void generateBmp()
             }
 
             Point *intersectionPoint = ray->getPoint(tMin);
-            
+
             Color *color = new Color(0, 0, 0);
-            if (nearestObject != NULL) {
+            if (nearestObject != NULL)
+            {
                 delete color;
 
-                if (nearestObject->objectType == "board") {
+                color = nearestObject->color.copy();
+                if (nearestObject->objectType == "board")
+                {
                     Board *board = (Board *)nearestObject;
 
                     // first get the bottom left corner of the board
-                    double bottomLeftX = -100*board->width;
-                    double bottomLeftY = -100*board->height;
+                    double bottomLeftX = -100 * board->width;
+                    double bottomLeftY = -100 * board->height;
 
                     int xCell = (int)floor((intersectionPoint->x - bottomLeftX) / board->width);
                     int yCell = (int)floor((intersectionPoint->y - bottomLeftY) / board->height);
 
-                    if ((xCell + yCell) % 2 == 0) {
+                    if ((xCell + yCell) % 2 == 0)
                         color = new Color(1, 1, 1);
-                    }
-                    else {
+                    else
                         color = new Color(0, 0, 0);
-                    }
-                } 
-                else {
-                    color = &(nearestObject->color);
                 }
 
                 // ambient
                 Color *ambient = color->multiply(nearestObject->lightCoefficients.ambient);
 
-                // diffuse & specular
-                Color *diffuse = new Color(0, 0, 0);
-                Color *specular = new Color(0, 0, 0);
+                double lambert = 0, phong = 0;
+                for (LightSource *light : lights)
+                {
+                    Point *lightVector = light->position.subtract(intersectionPoint);
+                    lightVector->normalize();
+                    // start the light ray from a little bit away from the intersection point
+                    Ray *lightRay = new Ray(intersectionPoint->add(lightVector->multiply(2*EPSILON)), lightVector);
 
-                
+                    // let's check if the light is blocked by any other object
+                    double tMin = lightVector->magnitude();
+                    boolean isBlocked = false;
+                    for (Object *object : objects)
+                    {
+                        double t = object->handleIntersecttion(lightRay);
+                        if (t > 0 && t < tMin)
+                        {
+                            tMin = t;
+                            isBlocked = true;
+                            break;
+                        }
+                    }
+                    delete lightRay;
+
+                    if (isBlocked == false && light->lightType == "spot")
+                    {
+                        SpotLightSource *spot = (SpotLightSource *)light;
+                        Point *sourceToObject = intersectionPoint->subtract(&(spot->position));
+                        sourceToObject->normalize();
+                        spot->direction.normalize();
+                        double angle = acos(sourceToObject->dot(&(spot->direction)));
+                        if (angle > spot->cutoffAngle)
+                            isBlocked = true;
+                    }
+
+                    if (isBlocked)
+                        continue;
+
+                    Point *toSource = lightVector->copy();
+                    toSource->normalize();
+
+                    Point *N = nearestObject->getNormal(intersectionPoint);
+                    if (N == NULL)
+                    {
+                        cout << "objectType: " << nearestObject->objectType << endl;
+                        cout << "N is NULL" << endl;
+                        // this should never happen cause the intersection point should be on the object
+                        exit(0);
+                    }
+                    N->normalize();
+                    double distance = toSource->magnitude();
+                    double scalingFactor = exp(-distance * distance * light->falloff);
+                    lambert += toSource->dot(N) * scalingFactor;
+
+                    Point *R = N->multiply(2 * toSource->dot(N))->subtract(toSource);
+                    // R->normalize();
+                    phong += pow(R->dot(toSource), nearestObject->shininess) * scalingFactor;
+
+                    delete toSource, N, R;
+                }
+
+                Color *diffuse = color->multiply(nearestObject->lightCoefficients.diffuse * lambert);
+                Color *specular = color->multiply(nearestObject->lightCoefficients.specular * phong);
 
                 // reflection
                 Color *reflection = new Color(0, 0, 0);
 
                 color = ambient->add(diffuse)->add(specular)->add(reflection);
-                delete ambient, diffuse, specular, reflection;
 
+                delete ambient, diffuse, specular, reflection;
             }
             colorBuffer[i][j] = color;
         }
 
         // print loading percentage
-        if (i % 100 == 0) {
-            cout << "loading: " << (i*100)/imageHeight << "%" << endl;
+        if (i % 100 == 0)
+        {
+            cout << "loading: " << (i * 100) / imageHeight << "%" << endl;
         }
     }
 
@@ -294,6 +351,14 @@ void generateBmp()
     {
         for (int j = 0; j < imageWidth; j++)
         {
+            // if (colorBuffer[i][j]->r > 1) colorBuffer[i][j]->r = 1;
+            // if (colorBuffer[i][j]->g > 1) colorBuffer[i][j]->g = 1;
+            // if (colorBuffer[i][j]->b > 1) colorBuffer[i][j]->b = 1;
+
+            // if (colorBuffer[i][j]->r < 0) colorBuffer[i][j]->r = 0;
+            // if (colorBuffer[i][j]->g < 0) colorBuffer[i][j]->g = 0;
+            // if (colorBuffer[i][j]->b < 0) colorBuffer[i][j]->b = 0;
+            
             bmpFile.set_pixel(j, i, 255 * colorBuffer[i][j]->r, 255 * colorBuffer[i][j]->g, 255 * colorBuffer[i][j]->b);
         }
     }

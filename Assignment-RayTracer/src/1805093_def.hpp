@@ -6,7 +6,7 @@
 
 using namespace std;
 
-#define EPSILON 0.0000001
+#define EPSILON 0.01
 
 double determinant(double a[3][3])
 {
@@ -29,6 +29,7 @@ public:
     Point *multiply(double scalar);
     Point *cross(Point *p);
     double dot(Point *p);
+    double magnitude();
 };
 
 class Color
@@ -40,6 +41,7 @@ public:
 
     Color* multiply(double scalar);
     Color* add(Color* c);
+    Color* copy();
 };
 
 class Ray
@@ -64,7 +66,7 @@ public:
     Point a, b, c;
 
     Triangle(Point a, Point b, Point c);
-    double getIntersection(Ray *ray);
+    double calcIntersection(Ray *ray);
     Point* getNormal();
 };
 
@@ -73,14 +75,7 @@ class Rect
 public:
     Point corner1, corner2;
     Rect(Point corner1, Point corner2);
-    double getIntersection(Ray *ray);
-};
-
-class CheckerBoard
-{
-public:
-    int width, height;
-    LightCoefficients lightCoefficients;
+    double calcIntersection(Ray *ray);
 };
 
 class Object
@@ -91,8 +86,10 @@ public:
     LightCoefficients lightCoefficients;
     double shininess;
 
+    Object();
+    double recIntersection(Ray *ray, int recLevel);
     virtual void draw() {}
-    virtual double intersect(Ray *ray, int recLevel) = 0;
+    virtual double handleIntersecttion(Ray *ray) = 0;
     virtual Point* getNormal(Point *p) = 0;
 };
 
@@ -102,7 +99,7 @@ public:
     int width, height;
 
     void draw();
-    double intersect(Ray *ray, int recLevel);
+    double handleIntersecttion(Ray *ray);
     Point* getNormal(Point *p);
 };
 
@@ -117,7 +114,7 @@ public:
     double height;
 
     void draw();
-    double intersect(Ray *ray, int recLevel);
+    double handleIntersecttion(Ray *ray);
     Point* getNormal(Point *p);
     ~Pyramid();
 };
@@ -132,7 +129,7 @@ public:
     double radius;
 
     void draw();
-    double intersect(Ray *ray, int recLevel);
+    double handleIntersecttion(Ray *ray);
     Point* getNormal(Point *p);
 };
 
@@ -143,7 +140,7 @@ public:
     double side;
 
     void draw();
-    double intersect(Ray *ray, int recLevel);
+    double handleIntersecttion(Ray *ray);
     Point* getNormal(Point *p);
 };
 
@@ -176,6 +173,27 @@ public:
     void draw();
 };
 
+//////////////////////////////// OBJECT ////////////////////////////////
+
+Object::Object()
+{
+    color = Color();
+    lightCoefficients = LightCoefficients();
+    shininess = 0;
+}
+
+double Object::recIntersection(Ray *ray, int recLevel)
+{
+    double t = handleIntersecttion(ray);
+
+    if (t < 0)
+        return -1;
+    if (recLevel == 0)
+        return t;
+
+    return t;
+}
+
 //////////////////////////////// POINT ////////////////////////////////
 
 Point::Point()
@@ -200,6 +218,8 @@ Point *Point::copy()
 void Point::normalize()
 {
     double length = sqrt(x * x + y * y + z * z);
+    if (length == 0)
+        return;
     x /= length;
     y /= length;
     z /= length;
@@ -242,6 +262,11 @@ double Point::dot(Point *p)
     return this->x * p->x + this->y * p->y + this->z * p->z;
 }
 
+double Point::magnitude()
+{
+    return sqrt(x * x + y * y + z * z);
+}
+
 //////////////////////////////// COLOR ////////////////////////////////
 
 Color::Color()
@@ -271,6 +296,11 @@ Color* Color::add(Color* c)
     double r = this->r + c->r;
     double g = this->g + c->g;
     double b = this->b + c->b;
+    return new Color(r, g, b);
+}
+
+Color* Color::copy()
+{
     return new Color(r, g, b);
 }
 
@@ -304,7 +334,7 @@ Triangle::Triangle(Point a, Point b, Point c)
     this->c = c;
 }
 
-double Triangle::getIntersection(Ray *ray)
+double Triangle::calcIntersection(Ray *ray)
 {
     double betaMatrix[3][3] = {
         {a.x - ray->start->x, a.x - c.x, ray->dir->x},
@@ -328,7 +358,7 @@ double Triangle::getIntersection(Ray *ray)
     double gamma = determinant(gammaMatrix) / aDet;
     double t = determinant(tMatrix) / aDet;
 
-    if (beta >= 0 && gamma >= 0 && beta + gamma <= 1 && t >= 0)
+    if (beta >= -EPSILON && gamma >= -EPSILON && beta + gamma <= 1+EPSILON && t > 0)
         return t;
 
     return -1;
@@ -349,7 +379,7 @@ Rect::Rect(Point corner1, Point corner2)
     this->corner2 = corner2;
 }
 
-double Rect::getIntersection(Ray *ray)
+double Rect::calcIntersection(Ray *ray)
 {
     // first find out which plane the rectangle in parallel to
 
@@ -431,11 +461,11 @@ void Board::draw()
     }
 }
 
-double Board::intersect(Ray *ray, int recLevel)
+double Board::handleIntersecttion(Ray *ray)
 {
     // check if the ray intersects with the board
     // board is on the XY plane
-    double t = Rect(Point(-100*width, -100*height, 0), Point(100*width, 100*height, 0)).getIntersection(ray);
+    double t = Rect(Point(-100*width, -100*height, 0), Point(100*width, 100*height, 0)).calcIntersection(ray);
     return t;
 }
 
@@ -507,7 +537,7 @@ void Pyramid::draw()
     glPopMatrix();
 }
 
-double Pyramid::intersect(Ray *ray, int recLevel)
+double Pyramid::handleIntersecttion(Ray *ray)
 {
     calculateAllSides();
 
@@ -518,13 +548,13 @@ double Pyramid::intersect(Ray *ray, int recLevel)
     double tMin = -1;
     for (Triangle *triangle : sideTriangles)
     {
-        double t = triangle->getIntersection(ray);
+        double t = triangle->calcIntersection(ray);
         if (t > 0 && (tMin < 0 || t < tMin))
             tMin = t;
     }
 
     // check if the ray intersects with the bottom Rect
-    double t = bottomRect->getIntersection(ray);
+    double t = bottomRect->calcIntersection(ray);
     if (t > 0 && (tMin < 0 || t < tMin))
         tMin = t;
 
@@ -666,7 +696,7 @@ void Sphere::draw()
 }
 
 // intersection calculation
-double Sphere::intersect(Ray *ray, int recLevel)
+double Sphere::handleIntersecttion(Ray *ray)
 {
     Point *centerToStart = ray->start->subtract(&center);
     double a = 1; /*ray->dir.dot(&ray->dir)*/
@@ -678,9 +708,14 @@ double Sphere::intersect(Ray *ray, int recLevel)
 
     double t1 = (-b + sqrt(discriminant)) / (2 * a);
     double t2 = (-b - sqrt(discriminant)) / (2 * a);
-    double t = min(t1, t2);
-
-    return t;
+    if (t1 < 0 && t2 < 0)
+        return -1;
+    else if (t1 < 0)
+        return t2;
+    else if (t2 < 0)
+        return t1;
+    else
+        return min(t1, t2);
 }
 
 Point* Sphere::getNormal(Point *p)
@@ -749,13 +784,13 @@ void Cube::draw()
     glPopMatrix();
 }
 
-double Cube::intersect(Ray *ray, int recLevel)
+double Cube::handleIntersecttion(Ray *ray)
 {
     // divide the cube in 6 rectangles
     vector<Rect *> rects;
     rects.push_back(new Rect(Point(bottomLeftFront.x, bottomLeftFront.y, bottomLeftFront.z), Point(bottomLeftFront.x + side, bottomLeftFront.y + side, bottomLeftFront.z)));
     rects.push_back(new Rect(Point(bottomLeftFront.x, bottomLeftFront.y, bottomLeftFront.z), Point(bottomLeftFront.x, bottomLeftFront.y + side, bottomLeftFront.z + side)));
-    rects.push_back(new Rect(Point(bottomLeftFront.x, bottomLeftFront.y, bottomLeftFront.z), Point(bottomLeftFront.x, bottomLeftFront.y + side, bottomLeftFront.z)));
+    rects.push_back(new Rect(Point(bottomLeftFront.x, bottomLeftFront.y, bottomLeftFront.z), Point(bottomLeftFront.x + side, bottomLeftFront.y, bottomLeftFront.z + side)));
     rects.push_back(new Rect(Point(bottomLeftFront.x + side, bottomLeftFront.y, bottomLeftFront.z), Point(bottomLeftFront.x + side, bottomLeftFront.y + side, bottomLeftFront.z + side)));
     rects.push_back(new Rect(Point(bottomLeftFront.x, bottomLeftFront.y + side, bottomLeftFront.z), Point(bottomLeftFront.x + side, bottomLeftFront.y + side, bottomLeftFront.z + side)));
     rects.push_back(new Rect(Point(bottomLeftFront.x, bottomLeftFront.y, bottomLeftFront.z + side), Point(bottomLeftFront.x + side, bottomLeftFront.y + side, bottomLeftFront.z + side)));
@@ -764,7 +799,7 @@ double Cube::intersect(Ray *ray, int recLevel)
     double tMin = -1;
     for (Rect *rect : rects)
     {
-        double t = rect->getIntersection(ray);
+        double t = rect->calcIntersection(ray);
         if (t > 0 && (tMin < 0 || t < tMin))
             tMin = t;
 
@@ -778,22 +813,22 @@ Point* Cube::getNormal(Point *p)
 {
     // check which face the point is on
     // if the point is on the bottom face
-    if (p->z == bottomLeftFront.z)
+    if (bottomLeftFront.z-EPSILON <= p->z && p->z <= bottomLeftFront.z+EPSILON)
         return new Point(0, 0, -1);
     // if the point is on the top face
-    else if (p->z == bottomLeftFront.z + side)
+    else if (bottomLeftFront.z+side-EPSILON <= p->z && p->z <= bottomLeftFront.z+side+EPSILON)
         return new Point(0, 0, 1);
     // if the point is on the left face
-    else if (p->x == bottomLeftFront.x)
+    else if (bottomLeftFront.x-EPSILON <= p->x && p->x <= bottomLeftFront.x+EPSILON)
         return new Point(-1, 0, 0);
     // if the point is on the right face
-    else if (p->x == bottomLeftFront.x + side)
+    else if (bottomLeftFront.x+side-EPSILON <= p->x && p->x <= bottomLeftFront.x+side+EPSILON)
         return new Point(1, 0, 0);
-    // if the point is on the front face
-    else if (p->y == bottomLeftFront.y)
-        return new Point(0, -1, 0);
     // if the point is on the back face
-    else if (p->y == bottomLeftFront.y + side)
+    else if (bottomLeftFront.y-EPSILON <= p->y && p->y <= bottomLeftFront.y+EPSILON)
+        return new Point(0, -1, 0);
+    // if the point is on the front face
+    else if (bottomLeftFront.y+side-EPSILON <= p->y && p->y <= bottomLeftFront.y+side+EPSILON)
         return new Point(0, 1, 0);
 
     return NULL;

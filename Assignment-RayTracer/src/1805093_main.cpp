@@ -232,7 +232,6 @@ void keyboardListener(unsigned char key, int x, int y)
         look->y = center->y - pos->y;
         look->normalize();
 
-        // rotate_z -= 5;
         break;
 
     case 'd':
@@ -244,7 +243,6 @@ void keyboardListener(unsigned char key, int x, int y)
         look->y = center->y - pos->y;
         look->normalize();
 
-        // rotate_z += 5;
         break;
 
     // control exit
