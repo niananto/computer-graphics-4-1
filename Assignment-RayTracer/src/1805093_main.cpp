@@ -3,8 +3,6 @@
 
 int nearPlane, farPlane, fovY, fovX, aspectRatio;
 int recursionLevel, imageWidth, imageHeight;
-int checkerBoardWidth, checkerBoardHeight;
-vector<double> checkerBoardCoeff(3);
 vector<Object *> objects;
 vector<LightSource *> lights;
 
@@ -76,40 +74,10 @@ void drawAxes()
     glEnd();
 }
 
-void drawChecker()
-{
-    // draw in infinite checker board with given size and coeff
-    for (int i = -100; i < 100; i++)
-    {
-        for (int j = -100; j < 100; j++)
-        {
-            if ((i + j) % 2 == 0)
-                glColor3f(1, 1, 1);
-            else
-                glColor3f(0, 0, 0);
-
-            glBegin(GL_QUADS);
-            glVertex3f(i * checkerBoardWidth, j * checkerBoardHeight, 0);
-            glVertex3f((i + 1) * checkerBoardWidth, j * checkerBoardHeight, 0);
-            glVertex3f((i + 1) * checkerBoardWidth, (j + 1) * checkerBoardHeight, 0);
-            glVertex3f(i * checkerBoardWidth, (j + 1) * checkerBoardHeight, 0);
-
-            glEnd();
-        }
-    }
-}
-
 /*  Handler for window-repaint event. Call back when the window first appears and
     whenever the window needs to be re-painted. */
 void display()
 {
-    // // r = (l-pos) x u
-    // r8->x = (look->y - pos->y) * up->z - (look->z - pos->z) * up->y;
-    // r8->y = (look->z - pos->z) * up->x - (look->x - pos->x) * up->z;
-    // r8->z = (look->x - pos->x) * up->y - (look->y - pos->y) * up->x;
-    // // normalize r
-    // r8->normalize();
-
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -123,7 +91,6 @@ void display()
 
     // draw
     drawAxes();
-    drawChecker();
     for (Object *object : objects)
     {
         // if (object->objectType == "pyramid")
@@ -239,7 +206,10 @@ void keyboardListener(unsigned char key, int x, int y)
         look->x = center->x - pos->x;
         look->y = center->y - pos->y;
         look->z = center->z - pos->z;
+        look->normalize();
+
         break;
+
     case 's':
         // move down without changing reference point
         pos->x -= v * up->x;
@@ -249,28 +219,32 @@ void keyboardListener(unsigned char key, int x, int y)
         look->x = center->x - pos->x;
         look->y = center->y - pos->y;
         look->z = center->z - pos->z;
+        look->normalize();
+
         break;
+
     case 'a':
         // rotate the object in the clockwise direction about its own axis
-        // pos->x += v * (-up->y*look->z);
-        // pos->y += v * (look->x*up->y);
+        pos->x += v * (-up->y*look->y);
+        pos->y += v * (look->x*up->y);
 
-        // look->x = center->x - pos->x;
-        // look->y = center->y - pos->y;
-        // look->normalize();
+        look->x = center->x - pos->x;
+        look->y = center->y - pos->y;
+        look->normalize();
 
-        rotate_z -= 5;
+        // rotate_z -= 5;
         break;
+
     case 'd':
         // rotate the object in the anti-clockwise direction about its own axis
-        // pos->x += v * (up->y*look->z);
-        // pos->z += v * (-look->x*up->y);
+        pos->x += v * (up->y*look->y);
+        pos->y += v * (-look->x*up->y);
 
-        // look->x = center->x - pos->x;
-        // look->z = center->z - pos->z;
-        // look->normalize();
+        look->x = center->x - pos->x;
+        look->y = center->y - pos->y;
+        look->normalize();
 
-        rotate_z += 5;
+        // rotate_z += 5;
         break;
 
     // control exit
@@ -334,7 +308,7 @@ void specialKeyListener(int key, int x, int y)
 int main(int argc, char **argv)
 {
     glutInit(&argc, argv);
-    glutInitWindowSize(640, 640);
+    glutInitWindowSize(650, 650);
     glutInitWindowPosition(1100, 100);
     glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGB);
     glutCreateWindow("Ray Tracing");

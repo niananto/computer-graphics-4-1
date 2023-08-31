@@ -7,8 +7,6 @@ using namespace std;
 
 extern int nearPlane, farPlane, fovY, fovX, aspectRatio;
 extern int recursionLevel, imageWidth, imageHeight;
-extern int checkerBoardWidth, checkerBoardHeight;
-extern vector<double> checkerBoardCoeff;
 extern vector<Object *> objects;
 extern vector<LightSource *> lights;
 
@@ -27,9 +25,14 @@ void getInputs()
     input >> recursionLevel >> imageWidth;
     imageHeight = imageWidth;
 
-    input >> checkerBoardWidth;
-    checkerBoardHeight = checkerBoardWidth;
-    input >> checkerBoardCoeff[0] >> checkerBoardCoeff[1] >> checkerBoardCoeff[2];
+    Board *board = new Board();
+    board->objectType = "board";
+    input >> board->width;
+    board->height = board->width;
+    input >> board->lightCoefficients.ambient >> board->lightCoefficients.diffuse >> board->lightCoefficients.reflection;
+    board->color = Color(1, 1, 1);
+    board->shininess = 0;
+    objects.push_back(board);
 
     int noOfObjects;
     input >> noOfObjects;
@@ -65,7 +68,7 @@ void getInputs()
         {
             Cube *cube = new Cube();
             cube->objectType = objectType;
-            input >> cube->bottomLeft.x >> cube->bottomLeft.y >> cube->bottomLeft.z;
+            input >> cube->bottomLeftFront.x >> cube->bottomLeftFront.y >> cube->bottomLeftFront.z;
             input >> cube->side;
             input >> cube->color.r >> cube->color.g >> cube->color.b;
             input >> cube->lightCoefficients.ambient >> cube->lightCoefficients.diffuse >> cube->lightCoefficients.specular >> cube->lightCoefficients.reflection;
@@ -140,7 +143,7 @@ void getInputs()
     //     else if (objects[i]->objectType == "cube")
     //     {
     //         Cube *cube = (Cube *)objects[i];
-    //         cout << cube->bottomLeft.x << " " << cube->bottomLeft.y << " " << cube->bottomLeft.z << endl;
+    //         cout << cube->bottomLeftFront.x << " " << cube->bottomLeftFront.y << " " << cube->bottomLeftFront.z << endl;
     //         cout << cube->side << endl;
     //         cout << cube->color.r << " " << cube->color.g << " " << cube->color.b << endl;
     //         cout << cube->lightCoefficients.ambient << " " << cube->lightCoefficients.diffuse << " " << cube->lightCoefficients.specular << " " << cube->lightCoefficients.reflection << endl;
@@ -214,32 +217,75 @@ void generateBmp()
     }
 
     // declare colorBuffer
-    vector<vector<Color *>> colorBuffer;
-    for (int i = 0; i < imageHeight; i++)
-    {
-        vector<Color *> row;
-        for (int j = 0; j < imageWidth; j++)
-        {
-            row.push_back(new Color());
-        }
-        colorBuffer.push_back(row);
-    }
+    vector<vector<Color *>> colorBuffer(imageHeight, vector<Color *>(imageWidth));
 
     for (int i = 0; i < imageHeight; i++)
     {
         for (int j = 0; j < imageWidth; j++)
         {
-            Ray *ray = new Ray(pos->copy(), pointBuffer[i][j]->subtract(pos));
+            Ray *ray = new Ray(pointBuffer[i][j]->copy(), pointBuffer[i][j]->subtract(pos));
 
-            for (Object *object : objects)
+            double tMin = farPlane;
+            Object *nearestObject = NULL;
+            for (int k = 0; k < objects.size(); k++)
             {
-                if (object->objectType == "sphere")
+                double t = objects[k]->intersect(ray, 0);
+                if (t > 0 && t < tMin)
                 {
-                    Color *color = object->intersect(ray, 0);
-                    if (color != NULL)
-                        colorBuffer[i][j] = color;
+                    tMin = t;
+                    nearestObject = objects[k];
                 }
             }
+
+            Point *intersectionPoint = ray->getPoint(tMin);
+            
+            Color *color = new Color(0, 0, 0);
+            if (nearestObject != NULL) {
+                delete color;
+
+                if (nearestObject->objectType == "board") {
+                    Board *board = (Board *)nearestObject;
+
+                    // first get the bottom left corner of the board
+                    double bottomLeftX = -100*board->width;
+                    double bottomLeftY = -100*board->height;
+
+                    int xCell = (int)floor((intersectionPoint->x - bottomLeftX) / board->width);
+                    int yCell = (int)floor((intersectionPoint->y - bottomLeftY) / board->height);
+
+                    if ((xCell + yCell) % 2 == 0) {
+                        color = new Color(1, 1, 1);
+                    }
+                    else {
+                        color = new Color(0, 0, 0);
+                    }
+                } 
+                else {
+                    color = &(nearestObject->color);
+                }
+
+                // ambient
+                Color *ambient = color->multiply(nearestObject->lightCoefficients.ambient);
+
+                // diffuse & specular
+                Color *diffuse = new Color(0, 0, 0);
+                Color *specular = new Color(0, 0, 0);
+
+                
+
+                // reflection
+                Color *reflection = new Color(0, 0, 0);
+
+                color = ambient->add(diffuse)->add(specular)->add(reflection);
+                delete ambient, diffuse, specular, reflection;
+
+            }
+            colorBuffer[i][j] = color;
+        }
+
+        // print loading percentage
+        if (i % 100 == 0) {
+            cout << "loading: " << (i*100)/imageHeight << "%" << endl;
         }
     }
 
@@ -248,11 +294,11 @@ void generateBmp()
     {
         for (int j = 0; j < imageWidth; j++)
         {
-            bmpFile.set_pixel(j, i, 255*colorBuffer[i][j]->r, 255*colorBuffer[i][j]->g, 255*colorBuffer[i][j]->b);
+            bmpFile.set_pixel(j, i, 255 * colorBuffer[i][j]->r, 255 * colorBuffer[i][j]->g, 255 * colorBuffer[i][j]->b);
         }
     }
 
-    bmpFile.save_image("out"+to_string(imgCount)+".bmp");
+    bmpFile.save_image("out" + to_string(imgCount) + ".bmp");
     imgCount++;
 
     cout << "image generated" << endl;
