@@ -24,11 +24,11 @@ public:
     Point(double x, double y, double z);
     Point *copy();
     void normalize();
-    Point *add(Point *p);
-    Point *subtract(Point *p);
-    Point *multiply(double scalar);
-    Point *cross(Point *p);
-    double dot(Point *p);
+    Point add(Point p);
+    Point subtract(Point p);
+    Point multiply(double scalar);
+    Point cross(Point p);
+    double dot(Point p);
     double magnitude();
 };
 
@@ -47,9 +47,9 @@ public:
 class Ray
 {
 public:
-    Point *start, *dir;
+    Point start, dir;
     Color color;
-    Ray(Point *start, Point *dir);
+    Ray(Point &start, Point &dir);
     Point *getPoint(double t);
     ~Ray();
 };
@@ -87,7 +87,7 @@ public:
     double shininess;
 
     Object();
-    Color *recIntersection(Ray *ray, Point *intersectionPoint, int recLevel);
+    Color *recIntersection(Ray *ray, Point &intersectionPoint, int recLevel);
     virtual void draw() {}
     virtual double handleIntersecttion(Ray *ray) = 0;
     virtual Point *getNormal(Point *p) = 0;
@@ -186,7 +186,7 @@ Object::Object()
 extern vector<Object *> objects;
 extern vector<LightSource *> lights;
 
-Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, int recLevel)
+Color *Object::recIntersection(Ray *ray, Point &intersectionPoint, int recLevel)
 {
     double t = handleIntersecttion(ray);
 
@@ -205,8 +205,8 @@ Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, int recLevel)
         double bottomLeftX = -100 * board->width;
         double bottomLeftY = -100 * board->height;
 
-        int xCell = (int)floor((intersectionPoint->x - bottomLeftX) / board->width);
-        int yCell = (int)floor((intersectionPoint->y - bottomLeftY) / board->height);
+        int xCell = (int)floor((intersectionPoint.x - bottomLeftX) / board->width);
+        int yCell = (int)floor((intersectionPoint.y - bottomLeftY) / board->height);
 
         if ((xCell + yCell) % 2 == 0)
             currColor = new Color(1, 1, 1);
@@ -223,13 +223,14 @@ Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, int recLevel)
     double lambert = 0, phong = 0;
     for (LightSource *light : lights)
     {
-        Point *lightVector = light->position.subtract(intersectionPoint);
-        lightVector->normalize();
+        Point lightVector = light->position.subtract(intersectionPoint);
+        lightVector.normalize();
         // start the light ray from a little bit away from the intersection point
-        Ray *lightRay = new Ray(intersectionPoint->add(lightVector->multiply(2 * EPSILON)), lightVector);
+        Point temp = intersectionPoint.add(lightVector.multiply(2 * EPSILON));
+        Ray *lightRay = new Ray(temp, lightVector);
 
         // let's check if the light is blocked by any other object
-        double tMin = lightVector->magnitude();
+        double tMin = lightVector.magnitude();
         boolean isBlocked = false;
         for (Object *object : objects)
         {
@@ -246,10 +247,10 @@ Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, int recLevel)
         if (isBlocked == false && light->lightType == "spot")
         {
             SpotLightSource *spot = (SpotLightSource *)light;
-            Point *sourceToObject = intersectionPoint->subtract(&(spot->position));
-            sourceToObject->normalize();
+            Point sourceToObject = intersectionPoint.subtract(spot->position);
+            sourceToObject.normalize();
             spot->direction.normalize();
-            double angle = acos(sourceToObject->dot(&(spot->direction)));
+            double angle = acos(sourceToObject.dot(spot->direction));
             if (angle > spot->cutoffAngle)
                 isBlocked = true;
         }
@@ -257,37 +258,37 @@ Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, int recLevel)
         if (isBlocked)
             continue;
 
-        Point *toSource = lightVector->copy();
-        toSource->normalize();
+        Point toSource = *lightVector.copy();
+        toSource.normalize();
 
-        Point *N = this->getNormal(intersectionPoint);
-        if (N == NULL)
+        Point N = *(this->getNormal(&intersectionPoint));
+        if (this->getNormal(&intersectionPoint) == NULL)
         {
             cout << "objectType: " << this->objectType << endl;
             cout << "N is NULL" << endl;
             // this should never happen cause the intersection point should be on the object
             exit(0);
         }
-        N->normalize();
-        double distance = toSource->magnitude();
+        N.normalize();
+        double distance = toSource.magnitude();
         double scalingFactor = exp(-distance * distance * light->falloff);
-        lambert += toSource->dot(N) * scalingFactor;
+        lambert += toSource.dot(N) * scalingFactor;
 
-        Point *R = N->multiply(2 * toSource->dot(N))->subtract(toSource);
-        R->normalize();
-        phong += pow(R->dot(toSource), this->shininess) * scalingFactor;
+        Point R = N.multiply(2 * toSource.dot(N)).subtract(toSource);
+        R.normalize();
+        phong += pow(R.dot(toSource), this->shininess) * scalingFactor;
 
         // reflection
         // You already calculated reflected ray R’, right? Now pass that ray as if it is an original ray cast from the intersection point.
         // You can do this by calling recIntersection() function recursively.
         // You should also multiply the returned color by the reflection coefficient of the object.
 
-        Ray *reflectedRay = new Ray(intersectionPoint->add(R->multiply(2 * EPSILON)), R);
+        Ray reflectedRay = Ray(intersectionPoint.add(R.multiply(2 * EPSILON)), R);
         Color *reflection = this->recIntersection(reflectedRay, intersectionPoint, recLevel - 1);
         reflection = reflection->multiply(this->lightCoefficients.reflection);
         currColor = currColor->add(reflection);
 
-        delete toSource, N, R, reflectedRay, reflection;
+        delete reflectedRay, reflection;
     }
 
     Color *diffuse = currColor->multiply(this->lightCoefficients.diffuse * lambert);
@@ -330,41 +331,41 @@ void Point::normalize()
     z /= length;
 }
 
-Point *Point::add(Point *p)
+Point Point::add(Point p)
 {
-    double x = this->x + p->x;
-    double y = this->y + p->y;
-    double z = this->z + p->z;
-    return new Point(x, y, z);
+    double x = this->x + p.x;
+    double y = this->y + p.y;
+    double z = this->z + p.z;
+    return Point(x, y, z);
 }
 
-Point *Point::subtract(Point *p)
+Point Point::subtract(Point p)
 {
-    double x = this->x - p->x;
-    double y = this->y - p->y;
-    double z = this->z - p->z;
-    return new Point(x, y, z);
+    double x = this->x - p.x;
+    double y = this->y - p.y;
+    double z = this->z - p.z;
+    return Point(x, y, z);
 }
 
-Point *Point::multiply(double scalar)
+Point Point::multiply(double scalar)
 {
     double x = this->x * scalar;
     double y = this->y * scalar;
     double z = this->z * scalar;
-    return new Point(x, y, z);
+    return Point(x, y, z);
 }
 
-Point *Point::cross(Point *p)
+Point Point::cross(Point p)
 {
-    double x = this->y * p->z - this->z * p->y;
-    double y = this->z * p->x - this->x * p->z;
-    double z = this->x * p->y - this->y * p->x;
-    return new Point(x, y, z);
+    double x = this->y * p.z - this->z * p.y;
+    double y = this->z * p.x - this->x * p.z;
+    double z = this->x * p.y - this->y * p.x;
+    return Point(x, y, z);
 }
 
-double Point::dot(Point *p)
+double Point::dot(Point p)
 {
-    return this->x * p->x + this->y * p->y + this->z * p->z;
+    return this->x * p.x + this->y * p.y + this->z * p.z;
 }
 
 double Point::magnitude()
@@ -411,23 +412,21 @@ Color *Color::copy()
 
 //////////////////////////////// RAY ////////////////////////////////
 
-Ray::Ray(Point *start, Point *dir)
+Ray::Ray(Point &start, Point &dir)
 {
     this->start = start;
     this->dir = dir;
-    this->dir->normalize();
+    this->dir.normalize();
     color = Color(1, 1, 1);
 }
 
 Point *Ray::getPoint(double t)
 {
-    return start->add(dir->multiply(t));
+    return &(start.add(dir.multiply(t)));
 }
 
 Ray::~Ray()
 {
-    delete start;
-    delete dir;
 }
 
 /////////////////////////////// TRIANGLE ///////////////////////////////
@@ -442,21 +441,21 @@ Triangle::Triangle(Point a, Point b, Point c)
 double Triangle::calcIntersection(Ray *ray)
 {
     double betaMatrix[3][3] = {
-        {a.x - ray->start->x, a.x - c.x, ray->dir->x},
-        {a.y - ray->start->y, a.y - c.y, ray->dir->y},
-        {a.z - ray->start->z, a.z - c.z, ray->dir->z}};
+        {a.x - ray->start.x, a.x - c.x, ray->dir.x},
+        {a.y - ray->start.y, a.y - c.y, ray->dir.y},
+        {a.z - ray->start.z, a.z - c.z, ray->dir.z}};
     double gammaMatrix[3][3] = {
-        {a.x - b.x, a.x - ray->start->x, ray->dir->x},
-        {a.y - b.y, a.y - ray->start->y, ray->dir->y},
-        {a.z - b.z, a.z - ray->start->z, ray->dir->z}};
+        {a.x - b.x, a.x - ray->start.x, ray->dir.x},
+        {a.y - b.y, a.y - ray->start.y, ray->dir.y},
+        {a.z - b.z, a.z - ray->start.z, ray->dir.z}};
     double tMatrix[3][3] = {
-        {a.x - b.x, a.x - c.x, a.x - ray->start->x},
-        {a.y - b.y, a.y - c.y, a.y - ray->start->y},
-        {a.z - b.z, a.z - c.z, a.z - ray->start->z}};
+        {a.x - b.x, a.x - c.x, a.x - ray->start.x},
+        {a.y - b.y, a.y - c.y, a.y - ray->start.y},
+        {a.z - b.z, a.z - c.z, a.z - ray->start.z}};
     double aMatrix[3][3] = {
-        {a.x - b.x, a.x - c.x, ray->dir->x},
-        {a.y - b.y, a.y - c.y, ray->dir->y},
-        {a.z - b.z, a.z - c.z, ray->dir->z}};
+        {a.x - b.x, a.x - c.x, ray->dir.x},
+        {a.y - b.y, a.y - c.y, ray->dir.y},
+        {a.z - b.z, a.z - c.z, ray->dir.z}};
 
     double aDet = determinant(aMatrix);
     double beta = determinant(betaMatrix) / aDet;
@@ -471,7 +470,7 @@ double Triangle::calcIntersection(Ray *ray)
 
 Point *Triangle::getNormal()
 {
-    Point *normal = a.subtract(&b)->cross(a.subtract(&c));
+    Point *normal = &(a.subtract(b).cross(a.subtract(c)));
     normal->normalize();
     return normal;
 }
@@ -492,11 +491,11 @@ double Rect::calcIntersection(Ray *ray)
     if (corner1.z == corner2.z)
     {
         // if the ray is parallel to XY plane
-        if (ray->dir->z == 0)
+        if (ray->dir.z == 0)
             return -1;
 
         // if the ray is not parallel to XY plane
-        double t = (corner1.z - ray->start->z) / ray->dir->z;
+        double t = (corner1.z - ray->start.z) / ray->dir.z;
         if (t < 0)
             return -1;
 
@@ -508,11 +507,11 @@ double Rect::calcIntersection(Ray *ray)
     else if (corner1.x == corner2.x)
     {
         // if the ray is parallel to YZ plane
-        if (ray->dir->x == 0)
+        if (ray->dir.x == 0)
             return -1;
 
         // if the ray is not parallel to YZ plane
-        double t = (corner1.x - ray->start->x) / ray->dir->x;
+        double t = (corner1.x - ray->start.x) / ray->dir.x;
         if (t < 0)
             return -1;
 
@@ -524,11 +523,11 @@ double Rect::calcIntersection(Ray *ray)
     else if (corner1.y == corner2.y)
     {
         // if the ray is parallel to XZ plane
-        if (ray->dir->y == 0)
+        if (ray->dir.y == 0)
             return -1;
 
         // if the ray is not parallel to XZ plane
-        double t = (corner1.y - ray->start->y) / ray->dir->y;
+        double t = (corner1.y - ray->start.y) / ray->dir.y;
         if (t < 0)
             return -1;
 
@@ -586,20 +585,20 @@ void Pyramid::calculateAllSides()
     if (sideTriangles.size() > 0 && bottomRect != NULL)
         return;
 
-    Point *bottom1 = lowest.add(new Point(width / sqrt(2), 0, 0));
-    Point *bottom2 = lowest.add(new Point(0, width / sqrt(2), 0));
-    Point *bottom3 = lowest.add(new Point(-width / sqrt(2), 0, 0));
-    Point *bottom4 = lowest.add(new Point(0, -width / sqrt(2), 0));
-    Point *top = lowest.add(new Point(0, 0, height));
+    Point bottom1 = (lowest.add(Point(width / sqrt(2), 0, 0)));
+    Point bottom2 = (lowest.add(Point(0, width / sqrt(2), 0)));
+    Point bottom3 = (lowest.add(Point(-width / sqrt(2), 0, 0)));
+    Point bottom4 = (lowest.add(Point(0, -width / sqrt(2), 0)));
+    Point top = (lowest.add(Point(0, 0, height)));
 
-    sideTriangles.push_back(new Triangle(*bottom1, *bottom2, *top));
-    sideTriangles.push_back(new Triangle(*bottom2, *bottom3, *top));
-    sideTriangles.push_back(new Triangle(*bottom3, *bottom4, *top));
-    sideTriangles.push_back(new Triangle(*bottom4, *bottom1, *top));
+    sideTriangles.push_back(new Triangle(bottom1, bottom2, top));
+    sideTriangles.push_back(new Triangle(bottom2, bottom3, top));
+    sideTriangles.push_back(new Triangle(bottom3, bottom4, top));
+    sideTriangles.push_back(new Triangle(bottom4, bottom1, top));
 
-    bottomRect = new Rect(*bottom3, *bottom1);
+    bottomRect = new Rect(bottom3, bottom1);
 
-    delete bottom1, bottom2, bottom3, bottom4, top;
+    // delete bottom1, bottom2, bottom3, bottom4, top;
 }
 
 void drawTriangle()
@@ -679,8 +678,8 @@ Point *Pyramid::getNormal(Point *p)
     {
         // check if the point is on the triangle or not
         Point *normal = triangle->getNormal();
-        Point *pToA = p->subtract(&triangle->a);
-        double dot = normal->dot(pToA);
+        Point *pToA = &(p->subtract(triangle->a));
+        double dot = normal->dot(*pToA);
         if (dot < EPSILON)
             return normal;
 
@@ -803,10 +802,10 @@ void Sphere::draw()
 // intersection calculation
 double Sphere::handleIntersecttion(Ray *ray)
 {
-    Point *centerToStart = ray->start->subtract(&center);
+    Point *centerToStart = &(ray->start.subtract(center));
     double a = 1; /*ray->dir.dot(&ray->dir)*/
-    double b = 2 * ray->dir->dot(centerToStart);
-    double c = centerToStart->dot(centerToStart) - radius * radius;
+    double b = 2 * ray->dir.dot(*centerToStart);
+    double c = centerToStart.dot(*centerToStart) - radius * radius;
     double discriminant = b * b - 4 * a * c;
     if (discriminant < 0)
         return -1;
@@ -826,8 +825,8 @@ double Sphere::handleIntersecttion(Ray *ray)
 Point *Sphere::getNormal(Point *p)
 {
     // check if the point is on the sphere
-    Point *centerToP = p->subtract(&center);
-    if (abs(centerToP->dot(centerToP) - radius * radius) < EPSILON)
+    Point *centerToP = &(p->subtract(center));
+    if (abs(centerToP->dot(*centerToP) - radius * radius) < EPSILON)
     {
         centerToP->normalize();
         return centerToP;
