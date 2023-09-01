@@ -226,19 +226,17 @@ void generateBmp()
         {
             Ray *ray = new Ray(pointBuffer[i][j]->copy(), pointBuffer[i][j]->subtract(pos));
 
-            double tMin = farPlane;
+            double tMin = -1;
             Object *nearestObject = NULL;
             for (int k = 0; k < objects.size(); k++)
             {
                 double t = objects[k]->handleIntersecttion(ray);
-                if (t > 0 && t < tMin)
+                if (t > 0 && (tMin < 0 || t < tMin))
                 {
                     tMin = t;
                     nearestObject = objects[k];
                 }
             }
-
-            
 
             Color *color;
             if (nearestObject == NULL)
@@ -247,10 +245,11 @@ void generateBmp()
             }
             else {
                 Point *intersectionPoint = ray->getPoint(tMin);
-                
-                color = nearestObject->recIntersection(ray, intersectionPoint, recursionLevel);
+                color = nearestObject->recIntersection(ray, intersectionPoint, tMin, recursionLevel);
+                delete intersectionPoint;
             }
             colorBuffer[i][j] = color;
+            delete ray;
         }
 
         // print loading percentage
@@ -265,14 +264,7 @@ void generateBmp()
     {
         for (int j = 0; j < imageWidth; j++)
         {
-            // if (colorBuffer[i][j]->r > 1) colorBuffer[i][j]->r = 1;
-            // if (colorBuffer[i][j]->g > 1) colorBuffer[i][j]->g = 1;
-            // if (colorBuffer[i][j]->b > 1) colorBuffer[i][j]->b = 1;
-
-            // if (colorBuffer[i][j]->r < 0) colorBuffer[i][j]->r = 0;
-            // if (colorBuffer[i][j]->g < 0) colorBuffer[i][j]->g = 0;
-            // if (colorBuffer[i][j]->b < 0) colorBuffer[i][j]->b = 0;
-            
+            // colorBuffer[i][j]->adjust();
             bmpFile.set_pixel(j, i, 255 * colorBuffer[i][j]->r, 255 * colorBuffer[i][j]->g, 255 * colorBuffer[i][j]->b);
         }
     }

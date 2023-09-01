@@ -3,10 +3,11 @@
 #include <cmath>
 #include <iostream>
 #include <vector>
+#include <iomanip>
 
 using namespace std;
 
-#define EPSILON 0.01
+#define EPSILON 0.00001
 
 double determinant(double a[3][3])
 {
@@ -42,6 +43,7 @@ public:
     Color *multiply(double scalar);
     Color *add(Color *c);
     Color *copy();
+    void adjust();
 };
 
 class Ray
@@ -67,7 +69,7 @@ public:
 
     Triangle(Point a, Point b, Point c);
     double calcIntersection(Ray *ray);
-    Point *getNormal();
+    Point *getNormal(Point *p);
 };
 
 class Rect
@@ -87,7 +89,7 @@ public:
     double shininess;
 
     Object();
-    Color *recIntersection(Ray *ray, Point *intersectionPoint, int recLevel);
+    Color *recIntersection(Ray *ray, Point *intersectionPoint, double t, int recLevel);
     virtual void draw() {}
     virtual double handleIntersecttion(Ray *ray) = 0;
     virtual Point *getNormal(Point *p) = 0;
@@ -186,19 +188,16 @@ Object::Object()
 extern vector<Object *> objects;
 extern vector<LightSource *> lights;
 
-Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, int recLevel)
+Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, double t, int recLevel)
 {
-    double t = handleIntersecttion(ray);
-
-    // if (t < 0)
-    //     return -1;
-    if (recLevel == 0)
+    if (t <= EPSILON || recLevel == 0)
         return new Color(0, 0, 0);
 
-    
     Color *currColor = this->color.copy();
     if (this->objectType == "board")
     {
+        delete currColor;
+
         Board *board = (Board *)this;
 
         // first get the bottom left corner of the board
@@ -215,9 +214,10 @@ Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, int recLevel)
     }
 
     // ambient
-    Color *ambient = currColor->multiply(this->lightCoefficients.ambient);
-    currColor = currColor->add(ambient);
-    delete ambient;
+    Color *ambientColor = currColor->multiply(this->lightCoefficients.ambient);
+    currColor = currColor->add(ambientColor);
+    // currColor->adjust();
+    delete ambientColor;
 
     // diffuse and specular and reflection
     double lambert = 0, phong = 0;
@@ -229,14 +229,15 @@ Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, int recLevel)
         Ray *lightRay = new Ray(intersectionPoint->add(lightVector->multiply(2 * EPSILON)), lightVector);
 
         // let's check if the light is blocked by any other object
-        double tMin = lightVector->magnitude();
         boolean isBlocked = false;
         for (Object *object : objects)
         {
+            // no need to check if the object is the current object
+            // cause self blocking is a thing
+
             double t = object->handleIntersecttion(lightRay);
-            if (t > 0 && t < tMin)
+            if (t > -EPSILON)
             {
-                tMin = t;
                 isBlocked = true;
                 break;
             }
@@ -257,10 +258,17 @@ Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, int recLevel)
         if (isBlocked)
             continue;
 
-        Point *toSource = lightVector->copy();
+        Point *toSource = light->position.subtract(intersectionPoint);
+        double distance = toSource->magnitude();
         toSource->normalize();
 
         Point *N = this->getNormal(intersectionPoint);
+        if (N->magnitude() == 0) {
+            cout << "objectType: " << this->objectType << endl;
+            cout << "N magnitude is 0" << endl;
+            // this should never happen
+            exit(0);
+        }
         if (N == NULL)
         {
             cout << "objectType: " << this->objectType << endl;
@@ -269,32 +277,58 @@ Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, int recLevel)
             exit(0);
         }
         N->normalize();
-        double distance = toSource->magnitude();
         double scalingFactor = exp(-distance * distance * light->falloff);
         lambert += toSource->dot(N) * scalingFactor;
 
         Point *R = N->multiply(2 * toSource->dot(N))->subtract(toSource);
+        // Point *R = toSource->subtract(N->multiply(2 * toSource->dot(N)));
+        if (R->magnitude() == 0) {
+            cout << "objectType: " << this->objectType << endl;
+            cout << "R magnitude is 0" << endl;
+            // this should never happen
+            exit(0);
+        }
         R->normalize();
         phong += pow(R->dot(toSource), this->shininess) * scalingFactor;
 
         // reflection
-        // You already calculated reflected ray R’, right? Now pass that ray as if it is an original ray cast from the intersection point.
-        // You can do this by calling recIntersection() function recursively.
-        // You should also multiply the returned color by the reflection coefficient of the object.
+        if (recLevel == 1)
+            continue;
 
         Ray *reflectedRay = new Ray(intersectionPoint->add(R->multiply(2 * EPSILON)), R);
-        Color *reflection = this->recIntersection(reflectedRay, intersectionPoint, recLevel - 1);
-        reflection = reflection->multiply(this->lightCoefficients.reflection);
-        currColor = currColor->add(reflection);
 
-        delete toSource, N, R, reflectedRay, reflection;
+        double tMin = -1;
+        Object *nearestObject = NULL;
+        for (Object *object : objects)
+        {
+            // for spheres, pyramids and cubes - self reflection is not possible
+            if (object == this)
+                continue;
+
+            double t = object->handleIntersecttion(reflectedRay);
+            if (t > -EPSILON && (tMin < 0 || t < tMin))
+            {
+                tMin = t;
+                nearestObject = object;
+            }
+        }
+
+        if (nearestObject != NULL)
+        {
+            Point *reflectedPoint = reflectedRay->getPoint(tMin);
+            Color *reflectedColor = nearestObject->recIntersection(reflectedRay, reflectedPoint, tMin, recLevel - 1);
+            currColor = currColor->add(reflectedColor->multiply(this->lightCoefficients.reflection));
+            // currColor->adjust();
+            delete reflectedPoint, reflectedColor;
+        }
     }
 
-    Color *diffuse = currColor->multiply(this->lightCoefficients.diffuse * lambert);
-    Color *specular = currColor->multiply(this->lightCoefficients.specular * phong);
+    Color *diffusedColor = currColor->multiply(this->lightCoefficients.diffuse * lambert);
+    Color *specularColor = currColor->multiply(this->lightCoefficients.specular * phong);
 
-    currColor = currColor->add(diffuse)->add(specular);
-    delete diffuse, specular;
+    currColor = currColor->add(diffusedColor)->add(specularColor);
+    // currColor->adjust();
+    delete diffusedColor, specularColor;
 
     return currColor;
 }
@@ -322,9 +356,11 @@ Point *Point::copy()
 
 void Point::normalize()
 {
-    double length = sqrt(x * x + y * y + z * z);
-    if (length == 0)
+    double length = this->magnitude();
+    if (length == 0){
+        cout << "vector length is 0" << endl;
         return;
+    }
     x /= length;
     y /= length;
     z /= length;
@@ -409,6 +445,36 @@ Color *Color::copy()
     return new Color(r, g, b);
 }
 
+void Color::adjust()
+{
+    cout << fixed << setprecision(10) << "before: " << r << " " << g << " " << b << endl;
+    // if (r > 1)
+    //     g = g / r, b = b / r, r = 1;
+    // if (g > 1)
+    //     r = r / g, b = b / g, g = 1;
+    // if (b > 1)
+    //     r = r / b, g = g / b, b = 1;
+    if (r > 1)
+        r = 1;
+    if (g > 1)
+        g = 1;
+    if (b > 1)
+        b = 1;
+    // if (r < 0)
+    //     g = g / (1 + r), b = b / (1 + r), r = 0;
+    // if (g < 0)
+    //     r = r / (1 + g), b = b / (1 + g), g = 0;
+    // if (b < 0)
+    //     r = r / (1 + b), g = g / (1 + b), b = 0;
+    if (r < -EPSILON)
+        r = 0;
+    if (g < -EPSILON)
+        g = 0;
+    if (b < -EPSILON)
+        b = 0;
+    cout << "after: " << r << " " << g << " " << b << endl;
+}
+
 //////////////////////////////// RAY ////////////////////////////////
 
 Ray::Ray(Point *start, Point *dir)
@@ -463,16 +529,19 @@ double Triangle::calcIntersection(Ray *ray)
     double gamma = determinant(gammaMatrix) / aDet;
     double t = determinant(tMatrix) / aDet;
 
-    if (beta >= -EPSILON && gamma >= -EPSILON && beta + gamma <= 1 + EPSILON && t > 0)
+    if (beta >= -EPSILON && gamma >= -EPSILON && beta + gamma <= 1 + EPSILON && t > -EPSILON)
         return t;
 
     return -1;
 }
 
-Point *Triangle::getNormal()
+Point *Triangle::getNormal(Point *p)
 {
     Point *normal = a.subtract(&b)->cross(a.subtract(&c));
     normal->normalize();
+    if (normal->dot(p) < EPSILON)
+        return normal->multiply(-1);
+
     return normal;
 }
 
@@ -492,12 +561,12 @@ double Rect::calcIntersection(Ray *ray)
     if (corner1.z == corner2.z)
     {
         // if the ray is parallel to XY plane
-        if (ray->dir->z == 0)
+        if (ray->dir->z >= -EPSILON && ray->dir->z <= EPSILON)
             return -1;
 
         // if the ray is not parallel to XY plane
         double t = (corner1.z - ray->start->z) / ray->dir->z;
-        if (t < 0)
+        if (t < -EPSILON)
             return -1;
 
         Point *intersection = ray->getPoint(t);
@@ -508,12 +577,12 @@ double Rect::calcIntersection(Ray *ray)
     else if (corner1.x == corner2.x)
     {
         // if the ray is parallel to YZ plane
-        if (ray->dir->x == 0)
+        if (ray->dir->x >= -EPSILON && ray->dir->x <= EPSILON)
             return -1;
 
         // if the ray is not parallel to YZ plane
         double t = (corner1.x - ray->start->x) / ray->dir->x;
-        if (t < 0)
+        if (t < -EPSILON)
             return -1;
 
         Point *intersection = ray->getPoint(t);
@@ -524,12 +593,12 @@ double Rect::calcIntersection(Ray *ray)
     else if (corner1.y == corner2.y)
     {
         // if the ray is parallel to XZ plane
-        if (ray->dir->y == 0)
+        if (ray->dir->y >= -EPSILON && ray->dir->y <= EPSILON)
             return -1;
 
         // if the ray is not parallel to XZ plane
         double t = (corner1.y - ray->start->y) / ray->dir->y;
-        if (t < 0)
+        if (t < -EPSILON)
             return -1;
 
         Point *intersection = ray->getPoint(t);
@@ -576,7 +645,12 @@ double Board::handleIntersecttion(Ray *ray)
 
 Point *Board::getNormal(Point *p)
 {
-    return new Point(0, 0, 1);
+    // check if the point is on the board
+    // board is on the XY plane
+    if (p->z >= -EPSILON && p->z <= EPSILON)
+        return new Point(0, 0, 1);
+
+    return NULL;
 }
 
 /////////////////////////////// PYRAMID ///////////////////////////////
@@ -654,13 +728,13 @@ double Pyramid::handleIntersecttion(Ray *ray)
     for (Triangle *triangle : sideTriangles)
     {
         double t = triangle->calcIntersection(ray);
-        if (t > 0 && (tMin < 0 || t < tMin))
+        if (t > -EPSILON && (tMin < 0 || t < tMin))
             tMin = t;
     }
 
     // check if the ray intersects with the bottom Rect
     double t = bottomRect->calcIntersection(ray);
-    if (t > 0 && (tMin < 0 || t < tMin))
+    if (t > -EPSILON && (tMin < 0 || t < tMin))
         tMin = t;
 
     return tMin;
@@ -671,14 +745,15 @@ Point *Pyramid::getNormal(Point *p)
     calculateAllSides();
 
     // check if the point is on the bottom Rect
-    if (p->z == lowest.z)
+    if (p->z >= lowest.z - EPSILON && p->z <= lowest.z + EPSILON)
         return new Point(0, 0, -1);
+    /*&& p->x >= lowest.x - width / sqrt(2) && p->x <= lowest.x + width / sqrt(2) && p->y >= lowest.y - width / sqrt(2) && p->y <= lowest.y + width / sqrt(2)*/
 
     // check if the point is on the side triangles
     for (Triangle *triangle : sideTriangles)
     {
         // check if the point is on the triangle or not
-        Point *normal = triangle->getNormal();
+        Point *normal = triangle->getNormal(p);
         Point *pToA = p->subtract(&triangle->a);
         double dot = normal->dot(pToA);
         if (dot < EPSILON)
@@ -804,20 +879,20 @@ void Sphere::draw()
 double Sphere::handleIntersecttion(Ray *ray)
 {
     Point *centerToStart = ray->start->subtract(&center);
-    double a = 1; /*ray->dir.dot(&ray->dir)*/
+    double a = ray->dir->dot(ray->dir); // 1
     double b = 2 * ray->dir->dot(centerToStart);
     double c = centerToStart->dot(centerToStart) - radius * radius;
     double discriminant = b * b - 4 * a * c;
-    if (discriminant < 0)
+    if (discriminant < EPSILON)
         return -1;
 
     double t1 = (-b + sqrt(discriminant)) / (2 * a);
     double t2 = (-b - sqrt(discriminant)) / (2 * a);
-    if (t1 < 0 && t2 < 0)
+    if (t1 < -EPSILON && t2 < -EPSILON)
         return -1;
-    else if (t1 < 0)
+    else if (t1 < -EPSILON)
         return t2;
-    else if (t2 < 0)
+    else if (t2 < -EPSILON)
         return t1;
     else
         return min(t1, t2);
@@ -827,7 +902,8 @@ Point *Sphere::getNormal(Point *p)
 {
     // check if the point is on the sphere
     Point *centerToP = p->subtract(&center);
-    if (abs(centerToP->dot(centerToP) - radius * radius) < EPSILON)
+    double dif = centerToP->magnitude() - radius;
+    if (dif >= -EPSILON && dif <= EPSILON)
     {
         centerToP->normalize();
         return centerToP;
@@ -905,7 +981,7 @@ double Cube::handleIntersecttion(Ray *ray)
     for (Rect *rect : rects)
     {
         double t = rect->calcIntersection(ray);
-        if (t > 0 && (tMin < 0 || t < tMin))
+        if (t > -EPSILON && (tMin < 0 || t < tMin))
             tMin = t;
 
         delete rect;
