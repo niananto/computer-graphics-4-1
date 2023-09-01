@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <iomanip>
+#include <cassert>
 
 using namespace std;
 
@@ -41,10 +42,15 @@ public:
     Color(double r, double g, double b);
 
     Color *multiply(double scalar);
+    Color *multiply(Color *c);
     Color *add(Color *c);
     Color *copy();
     void adjust();
 };
+
+extern boolean showTexture;
+extern vector<vector<Color *>> whiteTileColorBuffer;
+extern vector<vector<Color *>> blackTileColorBuffer;
 
 class Ray
 {
@@ -53,6 +59,7 @@ public:
     Color color;
     Ray(Point *start, Point *dir);
     Point *getPoint(double t);
+    Ray *copy();
     ~Ray();
 };
 
@@ -92,17 +99,21 @@ public:
     Color *recIntersection(Ray *ray, Point *intersectionPoint, double t, int recLevel);
     virtual void draw() {}
     virtual double handleIntersecttion(Ray *ray) = 0;
-    virtual Point *getNormal(Point *p) = 0;
+    virtual Point *getNormal(Point *p, Ray *ray) = 0;
+    virtual Color *getColorAt(Point *p) { return color.copy(); }
 };
 
 class Board : public Object
 {
 public:
-    int width, height;
+    int tileWidth, tileHeight;
+    int tileCount;
 
     void draw();
     double handleIntersecttion(Ray *ray);
-    Point *getNormal(Point *p);
+    Point *getNormal(Point *p, Ray *ray);
+    Color *getColorAt(Point *p);
+    Color *getTextureAt(Point *p);
 };
 
 class Pyramid : public Object
@@ -118,7 +129,7 @@ public:
 
     void draw();
     double handleIntersecttion(Ray *ray);
-    Point *getNormal(Point *p);
+    Point *getNormal(Point *p, Ray *ray);
     ~Pyramid();
 };
 
@@ -133,7 +144,7 @@ public:
 
     void draw();
     double handleIntersecttion(Ray *ray);
-    Point *getNormal(Point *p);
+    Point *getNormal(Point *p, Ray *ray);
 };
 
 class Cube : public Object
@@ -144,7 +155,7 @@ public:
 
     void draw();
     double handleIntersecttion(Ray *ray);
-    Point *getNormal(Point *p);
+    Point *getNormal(Point *p, Ray *ray);
 };
 
 class LightSource
@@ -193,40 +204,24 @@ Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, double t, int
     if (t <= EPSILON || recLevel == 0)
         return new Color(0, 0, 0);
 
-    Color *currColor = this->color.copy();
-    if (this->objectType == "board")
+    Color *colorHere = getColorAt(intersectionPoint);
+    if (showTexture && objectType == "board")
     {
-        delete currColor;
-
-        Board *board = (Board *)this;
-
-        // first get the bottom left corner of the board
-        double bottomLeftX = -100 * board->width;
-        double bottomLeftY = -100 * board->height;
-
-        int xCell = (int)floor((intersectionPoint->x - bottomLeftX) / board->width);
-        int yCell = (int)floor((intersectionPoint->y - bottomLeftY) / board->height);
-
-        if ((xCell + yCell) % 2 == 0)
-            currColor = new Color(1, 1, 1);
-        else
-            currColor = new Color(0, 0, 0);
+        colorHere = ((Board *)this)->getTextureAt(intersectionPoint);
     }
 
     // ambient
-    Color *ambientColor = currColor->multiply(this->lightCoefficients.ambient);
-    currColor = currColor->add(ambientColor);
-    // currColor->adjust();
-    delete ambientColor;
+    Color *ambient = colorHere->multiply(this->lightCoefficients.ambient);
 
     // diffuse and specular and reflection
     double lambert = 0, phong = 0;
+    Color *reflection = new Color(0, 0, 0);
     for (LightSource *light : lights)
     {
         Point *lightVector = light->position.subtract(intersectionPoint);
         lightVector->normalize();
         // start the light ray from a little bit away from the intersection point
-        Ray *lightRay = new Ray(intersectionPoint->add(lightVector->multiply(2 * EPSILON)), lightVector);
+        Ray *toLight = new Ray(intersectionPoint->add(lightVector->multiply(2 * EPSILON)), lightVector);
 
         // let's check if the light is blocked by any other object
         boolean isBlocked = false;
@@ -235,14 +230,14 @@ Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, double t, int
             // no need to check if the object is the current object
             // cause self blocking is a thing
 
-            double t = object->handleIntersecttion(lightRay);
+            double t = object->handleIntersecttion(toLight);
             if (t > -EPSILON)
             {
                 isBlocked = true;
                 break;
             }
         }
-        delete lightRay;
+        delete toLight;
 
         if (isBlocked == false && light->lightType == "spot")
         {
@@ -251,7 +246,7 @@ Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, double t, int
             sourceToObject->normalize();
             spot->direction.normalize();
             double angle = acos(sourceToObject->dot(&(spot->direction)));
-            if (angle > spot->cutoffAngle)
+            if (angle * 180 / M_PI > spot->cutoffAngle) // should this be in radians?
                 isBlocked = true;
         }
 
@@ -259,43 +254,33 @@ Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, double t, int
             continue;
 
         Point *toSource = light->position.subtract(intersectionPoint);
-        double distance = toSource->magnitude();
         toSource->normalize();
 
-        Point *N = this->getNormal(intersectionPoint);
-        if (N->magnitude() == 0) {
-            cout << "objectType: " << this->objectType << endl;
-            cout << "N magnitude is 0" << endl;
-            // this should never happen
-            exit(0);
-        }
-        if (N == NULL)
-        {
-            cout << "objectType: " << this->objectType << endl;
-            cout << "N is NULL" << endl;
-            // this should never happen cause the intersection point should be on the object
-            exit(0);
-        }
+        // Ray *temp = new Ray(light->position.copy(), toSource->copy()); // these two works same
+        Ray *temp = new Ray(intersectionPoint->copy(), ray->dir->multiply(-1));
+        Point *N = this->getNormal(intersectionPoint, temp);
+        assert(N != NULL);
         N->normalize();
-        double scalingFactor = exp(-distance * distance * light->falloff);
-        lambert += toSource->dot(N) * scalingFactor;
 
-        Point *R = N->multiply(2 * toSource->dot(N))->subtract(toSource);
-        // Point *R = toSource->subtract(N->multiply(2 * toSource->dot(N)));
-        if (R->magnitude() == 0) {
-            cout << "objectType: " << this->objectType << endl;
-            cout << "R magnitude is 0" << endl;
-            // this should never happen
-            exit(0);
-        }
+        double distance = light->position.subtract(intersectionPoint)->magnitude();
+        double scalingFactor = exp(-distance * distance * light->falloff);
+        lambert += max(0.0, toSource->dot(N)) * scalingFactor;
+
+        // Point *R = ray->dir->subtract(N->multiply(2 * ray->dir->dot(N)));
+        Point *R = N->multiply(2 * N->dot(toSource))->subtract(toSource);
         R->normalize();
-        phong += pow(R->dot(toSource), this->shininess) * scalingFactor;
+
+        phong += pow(max(0.0, R->dot(toSource)), this->shininess) * scalingFactor;
+
+        delete toSource, N;
 
         // reflection
         if (recLevel == 1)
             continue;
 
-        Ray *reflectedRay = new Ray(intersectionPoint->add(R->multiply(2 * EPSILON)), R);
+        // cout << "WARNING!! reflection is not working properly" << endl;
+
+        Ray *reflectedRay = new Ray(intersectionPoint->add(R->multiply(2 * EPSILON)), R->copy());
 
         double tMin = -1;
         Object *nearestObject = NULL;
@@ -317,18 +302,42 @@ Color *Object::recIntersection(Ray *ray, Point *intersectionPoint, double t, int
         {
             Point *reflectedPoint = reflectedRay->getPoint(tMin);
             Color *reflectedColor = nearestObject->recIntersection(reflectedRay, reflectedPoint, tMin, recLevel - 1);
-            currColor = currColor->add(reflectedColor->multiply(this->lightCoefficients.reflection));
-            // currColor->adjust();
+            reflection = reflection->add(reflectedColor->multiply(this->lightCoefficients.reflection));
+            reflection->adjust();
             delete reflectedPoint, reflectedColor;
         }
+
+        delete reflectedRay, R;
     }
 
-    Color *diffusedColor = currColor->multiply(this->lightCoefficients.diffuse * lambert);
-    Color *specularColor = currColor->multiply(this->lightCoefficients.specular * phong);
+    // if (lambert != 0) {
+    //     cout << "lambert: " << lambert << endl;
+    // }
+    // if (phong != 0) {
+    //     cout << "phong: " << phong << endl;
+    // }
 
-    currColor = currColor->add(diffusedColor)->add(specularColor);
-    // currColor->adjust();
-    delete diffusedColor, specularColor;
+    Color *diffusedColor = colorHere->multiply(this->lightCoefficients.diffuse * lambert);
+    Color *specularColor = colorHere->multiply(this->lightCoefficients.specular * phong);
+
+    // if (diffusedColor->r != 0 || diffusedColor->g != 0 || diffusedColor->b != 0)
+    //     cout << "diffusedColor: " << diffusedColor->r << " " << diffusedColor->g << " " << diffusedColor->b << endl;
+    // if (specularColor->r != 0 || specularColor->g != 0 || specularColor->b != 0)
+    //     cout << "specularColor: " << specularColor->r << " " << specularColor->g << " " << specularColor->b << endl;
+
+    Color *currColor;
+    // if (showTexture && objectType == "board")
+    // {
+    //     Color *textureColor = ((Board *)this)->getTextureAt(intersectionPoint);
+    //     assert(textureColor != NULL);
+
+    //     // ambient = ambient->multiply(textureColor);
+    //     // diffusedColor = diffusedColor->multiply(textureColor);
+    //     delete textureColor;
+    // }
+    currColor = ambient->add(diffusedColor)->add(specularColor)->add(reflection);
+    currColor->adjust();
+    delete ambient, diffusedColor, specularColor, colorHere;
 
     return currColor;
 }
@@ -357,7 +366,8 @@ Point *Point::copy()
 void Point::normalize()
 {
     double length = this->magnitude();
-    if (length == 0){
+    if (length == 0)
+    {
         cout << "vector length is 0" << endl;
         return;
     }
@@ -432,6 +442,14 @@ Color *Color::multiply(double scalar)
     return new Color(r, g, b);
 }
 
+Color *Color::multiply(Color *c)
+{
+    double r = this->r * c->r;
+    double g = this->g * c->g;
+    double b = this->b * c->b;
+    return new Color(r, g, b);
+}
+
 Color *Color::add(Color *c)
 {
     double r = this->r + c->r;
@@ -447,32 +465,51 @@ Color *Color::copy()
 
 void Color::adjust()
 {
-    cout << fixed << setprecision(10) << "before: " << r << " " << g << " " << b << endl;
-    // if (r > 1)
-    //     g = g / r, b = b / r, r = 1;
-    // if (g > 1)
-    //     r = r / g, b = b / g, g = 1;
-    // if (b > 1)
-    //     r = r / b, g = g / b, b = 1;
+    // // cout << fixed << setprecision(10) << "before: " << r << " " << g << " " << b << endl;
     if (r > 1)
-        r = 1;
+        g = g / r, b = b / r, r = 1;
     if (g > 1)
-        g = 1;
+        r = r / g, b = b / g, g = 1;
     if (b > 1)
-        b = 1;
+        r = r / b, g = g / b, b = 1;
+    // if (r > 1)
+    //     r = 1;
+    // if (g > 1)
+    //     g = 1;
+    // if (b > 1)
+    //     b = 1;
+    if (r < 0)
+        g = g / (1 + r), b = b / (1 + r), r = 0;
+    if (g < 0)
+        r = r / (1 + g), b = b / (1 + g), g = 0;
+    if (b < 0)
+        r = r / (1 + b), g = g / (1 + b), b = 0;
     // if (r < 0)
-    //     g = g / (1 + r), b = b / (1 + r), r = 0;
+    //     r = 0;
     // if (g < 0)
-    //     r = r / (1 + g), b = b / (1 + g), g = 0;
+    //     g = 0;
     // if (b < 0)
-    //     r = r / (1 + b), g = g / (1 + b), b = 0;
-    if (r < -EPSILON)
-        r = 0;
-    if (g < -EPSILON)
-        g = 0;
-    if (b < -EPSILON)
-        b = 0;
-    cout << "after: " << r << " " << g << " " << b << endl;
+    //     b = 0;
+    // // cout << "after: " << r << " " << g << " " << b << endl;
+
+    // double maxValue = max(r, max(g, b));
+    // double minValue = min(r, min(g, b));
+
+    // if (maxValue > 1.0) {
+    //     r /= maxValue;
+    //     g /= maxValue;
+    //     b /= maxValue;
+    // } else if (minValue < 0.0) {
+    //     double adjustment = min(-minValue, 1.0);
+
+    //     r += adjustment;
+    //     g += adjustment;
+    //     b += adjustment;
+    // }
+
+    // r = max(0.0, min(1.0, r));
+    // g = max(0.0, min(1.0, g));
+    // b = max(0.0, min(1.0, b));
 }
 
 //////////////////////////////// RAY ////////////////////////////////
@@ -488,6 +525,11 @@ Ray::Ray(Point *start, Point *dir)
 Point *Ray::getPoint(double t)
 {
     return start->add(dir->multiply(t));
+}
+
+Ray *Ray::copy()
+{
+    return new Ray(start->copy(), dir->copy());
 }
 
 Ray::~Ray()
@@ -539,8 +581,8 @@ Point *Triangle::getNormal(Point *p)
 {
     Point *normal = a.subtract(&b)->cross(a.subtract(&c));
     normal->normalize();
-    if (normal->dot(p) < EPSILON)
-        return normal->multiply(-1);
+    // if (normal->dot(p) < EPSILON)
+    //     return normal->multiply(-1);
 
     return normal;
 }
@@ -625,10 +667,10 @@ void Board::draw()
                 glColor3f(0, 0, 0);
 
             glBegin(GL_QUADS);
-            glVertex3f(i * width, j * height, 0);
-            glVertex3f((i + 1) * width, j * height, 0);
-            glVertex3f((i + 1) * width, (j + 1) * height, 0);
-            glVertex3f(i * width, (j + 1) * height, 0);
+            glVertex3f(i * tileWidth, j * tileHeight, 0);
+            glVertex3f((i + 1) * tileWidth, j * tileHeight, 0);
+            glVertex3f((i + 1) * tileWidth, (j + 1) * tileHeight, 0);
+            glVertex3f(i * tileWidth, (j + 1) * tileHeight, 0);
 
             glEnd();
         }
@@ -639,18 +681,82 @@ double Board::handleIntersecttion(Ray *ray)
 {
     // check if the ray intersects with the board
     // board is on the XY plane
-    double t = Rect(Point(-100 * width, -100 * height, 0), Point(100 * width, 100 * height, 0)).calcIntersection(ray);
-    return t;
+    // double t = Rect(Point(-100 * width, -100 * height, 0), Point(100 * width, 100 * height, 0)).calcIntersection(ray);
+    // return t;
+
+    Point *normal = new Point(0, 0, 1);
+    if (normal->dot(ray->dir) >= -EPSILON && normal->dot(ray->dir) <= EPSILON)
+        return -1;
+
+    double t = (0 - ray->start->z) / ray->dir->z;
+    if (t < -EPSILON)
+        return -1;
+
+    Point *intersection = ray->getPoint(t);
+    if (intersection->x >= -100 * tileWidth && intersection->x <= 100 * tileWidth && intersection->y >= -100 * tileHeight && intersection->y <= 100 * tileHeight)
+        return t;
+
+    return -1;
 }
 
-Point *Board::getNormal(Point *p)
+Point *Board::getNormal(Point *p, Ray *ray)
 {
     // check if the point is on the board
     // board is on the XY plane
     if (p->z >= -EPSILON && p->z <= EPSILON)
-        return new Point(0, 0, 1);
+    {
+        if (ray->dir->z < EPSILON)
+            return new Point(0, 0, -1);
+        else
+            return new Point(0, 0, 1);
+    }
 
     return NULL;
+}
+
+Color *Board::getColorAt(Point *p)
+{
+    // first get the bottom left corner of the board
+    double bottomLeftX = -100 * tileWidth;
+    double bottomLeftY = -100 * tileHeight;
+
+    int x = (int)floor((p->x) / tileWidth);
+    int y = (int)floor((p->y) / tileHeight);
+
+    if ((x + y) % 2 == 0)
+        return new Color(1, 1, 1);
+    else
+        return new Color(0, 0, 0);
+}
+
+Color *Board::getTextureAt(Point *p)
+{
+    if (!showTexture)
+        return NULL;
+
+    int x = (int)floor((p->x) / tileWidth);
+    int y = (int)floor((p->y) / tileHeight);
+
+    if ((x + y) % 2 == 0)
+    {
+        int cellX = ((p->x / tileWidth) - floor(p->x / tileWidth)) * (blackTileColorBuffer[0].size() - 1);
+        int cellY = ((p->y / tileHeight) - floor(p->y / tileHeight)) * (blackTileColorBuffer.size() - 1);
+
+        assert(cellX >= 0 && cellX < blackTileColorBuffer[0].size());
+        assert(cellY >= 0 && cellY < blackTileColorBuffer.size());
+
+        return blackTileColorBuffer[cellY][cellX]->copy();
+    }
+    else
+    {
+        int cellX = ((p->x / tileWidth) - floor(p->x / tileWidth)) * (whiteTileColorBuffer[0].size() - 1);
+        int cellY = ((p->y / tileHeight) - floor(p->y / tileHeight)) * (whiteTileColorBuffer.size() - 1);
+
+        assert(cellX >= 0 && cellX < whiteTileColorBuffer[0].size());
+        assert(cellY >= 0 && cellY < whiteTileColorBuffer.size());
+
+        return whiteTileColorBuffer[cellY][cellX]->copy();
+    }
 }
 
 /////////////////////////////// PYRAMID ///////////////////////////////
@@ -740,7 +846,7 @@ double Pyramid::handleIntersecttion(Ray *ray)
     return tMin;
 }
 
-Point *Pyramid::getNormal(Point *p)
+Point *Pyramid::getNormal(Point *p, Ray *ray)
 {
     calculateAllSides();
 
@@ -756,8 +862,16 @@ Point *Pyramid::getNormal(Point *p)
         Point *normal = triangle->getNormal(p);
         Point *pToA = p->subtract(&triangle->a);
         double dot = normal->dot(pToA);
-        if (dot < EPSILON)
+        if (dot >= -EPSILON && dot <= EPSILON)
+        {
+            if (normal->dot(ray->dir) < EPSILON)
+            {
+                normal = normal->multiply(-1);
+            }
+
+            delete pToA;
             return normal;
+        }
 
         delete normal, pToA;
     }
@@ -880,6 +994,8 @@ double Sphere::handleIntersecttion(Ray *ray)
 {
     Point *centerToStart = ray->start->subtract(&center);
     double a = ray->dir->dot(ray->dir); // 1
+    if (a > 1 + EPSILON || a < 1 - EPSILON)
+        cout << "a is not 1" << endl;
     double b = 2 * ray->dir->dot(centerToStart);
     double c = centerToStart->dot(centerToStart) - radius * radius;
     double discriminant = b * b - 4 * a * c;
@@ -888,17 +1004,18 @@ double Sphere::handleIntersecttion(Ray *ray)
 
     double t1 = (-b + sqrt(discriminant)) / (2 * a);
     double t2 = (-b - sqrt(discriminant)) / (2 * a);
-    if (t1 < -EPSILON && t2 < -EPSILON)
+
+    if (t1 < EPSILON && t2 < EPSILON)
         return -1;
-    else if (t1 < -EPSILON)
+    else if (t1 < EPSILON)
         return t2;
-    else if (t2 < -EPSILON)
+    else if (t2 < EPSILON)
         return t1;
     else
         return min(t1, t2);
 }
 
-Point *Sphere::getNormal(Point *p)
+Point *Sphere::getNormal(Point *p, Ray *ray)
 {
     // check if the point is on the sphere
     Point *centerToP = p->subtract(&center);
@@ -906,6 +1023,8 @@ Point *Sphere::getNormal(Point *p)
     if (dif >= -EPSILON && dif <= EPSILON)
     {
         centerToP->normalize();
+        if (centerToP->dot(ray->dir) < EPSILON)
+            return centerToP->multiply(-1);
         return centerToP;
     }
 
@@ -990,29 +1109,34 @@ double Cube::handleIntersecttion(Ray *ray)
     return tMin;
 }
 
-Point *Cube::getNormal(Point *p)
+Point *Cube::getNormal(Point *p, Ray *ray)
 {
+    Point *normal = NULL;
     // check which face the point is on
     // if the point is on the bottom face
     if (bottomLeftFront.z - EPSILON <= p->z && p->z <= bottomLeftFront.z + EPSILON)
-        return new Point(0, 0, -1);
+        normal = new Point(0, 0, -1);
     // if the point is on the top face
     else if (bottomLeftFront.z + side - EPSILON <= p->z && p->z <= bottomLeftFront.z + side + EPSILON)
-        return new Point(0, 0, 1);
+        normal = new Point(0, 0, 1);
     // if the point is on the left face
     else if (bottomLeftFront.x - EPSILON <= p->x && p->x <= bottomLeftFront.x + EPSILON)
-        return new Point(-1, 0, 0);
+        normal = new Point(-1, 0, 0);
     // if the point is on the right face
     else if (bottomLeftFront.x + side - EPSILON <= p->x && p->x <= bottomLeftFront.x + side + EPSILON)
-        return new Point(1, 0, 0);
+        normal = new Point(1, 0, 0);
     // if the point is on the back face
     else if (bottomLeftFront.y - EPSILON <= p->y && p->y <= bottomLeftFront.y + EPSILON)
-        return new Point(0, -1, 0);
+        normal = new Point(0, -1, 0);
     // if the point is on the front face
     else if (bottomLeftFront.y + side - EPSILON <= p->y && p->y <= bottomLeftFront.y + side + EPSILON)
-        return new Point(0, 1, 0);
+        normal = new Point(0, 1, 0);
 
-    return NULL;
+    // check if the normal is pointing towards the ray
+    if (normal != NULL && normal->dot(ray->dir) < EPSILON)
+        normal->multiply(-1);
+
+    return normal;
 }
 
 /////////////////////////// LIGHTSOURCE //////////////////////////////

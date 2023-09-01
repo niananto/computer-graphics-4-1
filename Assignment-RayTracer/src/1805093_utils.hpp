@@ -16,6 +16,10 @@ extern Point *r8;     // right direction - dynamically updated in the display fu
 extern Point *up;     // up direction
 extern Point *center; // center of the scene - temp use
 
+extern boolean showTexture;
+extern vector<vector<Color *>> whiteTileColorBuffer;
+extern vector<vector<Color *>> blackTileColorBuffer;
+
 void getInputs()
 {
     ifstream input("description.txt");
@@ -27,12 +31,13 @@ void getInputs()
 
     Board *board = new Board();
     board->objectType = "board";
-    input >> board->width;
-    board->height = board->width;
+    input >> board->tileWidth;
+    board->tileHeight = board->tileWidth;
     input >> board->lightCoefficients.ambient >> board->lightCoefficients.diffuse >> board->lightCoefficients.reflection;
     board->lightCoefficients.specular = 0;
     board->color = Color(1, 1, 1);
     board->shininess = 0;
+    board->tileCount = 200;
     objects.push_back(board);
 
     int noOfObjects;
@@ -99,7 +104,11 @@ void getInputs()
         spot->lightType = "spot";
         input >> spot->position.x >> spot->position.y >> spot->position.z;
         input >> spot->falloff;
-        input >> spot->direction.x >> spot->direction.y >> spot->direction.z;
+        Point *temp = new Point();
+        input >> temp->x >> temp->y >> temp->z;
+        spot->direction = *(temp->subtract(&(spot->position)));
+        spot->direction.normalize();
+        delete temp;
         input >> spot->cutoffAngle;
         lights.push_back(spot);
     }
@@ -177,13 +186,8 @@ void getInputs()
 void generateBmp()
 {
     static int imgCount = 1;
-    // cout << "pos: " << pos->x << " " << pos->y << " " << pos->z << endl;
-    // cout << "look: " << look->x << " " << look->y << " " << look->z << endl;
-    // cout << "r8: " << r8->x << " " << r8->y << " " << r8->z << endl;
-    // cout << "up: " << up->x << " " << up->y << " " << up->z << endl;
 
     Point *nearMidpoint = pos->add(look->multiply(nearPlane));
-    // cout << "nearMidpoint: " << nearMidpoint->x << " " << nearMidpoint->y << " " << nearMidpoint->z << endl;
 
     double height = 2 * nearPlane * tan((fovY / 2) * (M_PI / 180));
     double width = 2 * nearPlane * tan((fovX / 2) * (M_PI / 180));
@@ -193,17 +197,11 @@ void generateBmp()
     double dx = width / (double)imageWidth;
     double dy = height / (double)imageHeight;
 
-    // cout << "height: " << height << endl;
-    // cout << "width: " << width << endl;
-    // cout << "dx: " << dx << endl;
-    // cout << "dy: " << dy << endl;
-
     // get the bottom left mid point
     Point *topLeftMid = nearMidpoint->subtract(r8->multiply(width / 2.0));
     topLeftMid = topLeftMid->add(up->multiply(height / 2.0));
     topLeftMid = topLeftMid->add(r8->multiply(dx / 2));
     topLeftMid = topLeftMid->subtract(up->multiply(dy / 2));
-    // cout << "topLeftMid: " << topLeftMid->x << " " << topLeftMid->y << " " << topLeftMid->z << endl;
 
     for (int i = 0; i < imageHeight; i++)
     {
@@ -239,11 +237,12 @@ void generateBmp()
             }
 
             Color *color;
-            if (nearestObject == NULL)
+            if (nearestObject == NULL || tMin > farPlane) // no intersection or intersection beyond far plane
             {
                 color = new Color(0, 0, 0);
             }
-            else {
+            else
+            {
                 Point *intersectionPoint = ray->getPoint(tMin);
                 color = nearestObject->recIntersection(ray, intersectionPoint, tMin, recursionLevel);
                 delete intersectionPoint;
@@ -264,7 +263,7 @@ void generateBmp()
     {
         for (int j = 0; j < imageWidth; j++)
         {
-            // colorBuffer[i][j]->adjust();
+            colorBuffer[i][j]->adjust();
             bmpFile.set_pixel(j, i, 255 * colorBuffer[i][j]->r, 255 * colorBuffer[i][j]->g, 255 * colorBuffer[i][j]->b);
         }
     }
@@ -283,4 +282,56 @@ void generateBmp()
             delete colorBuffer[i][j];
         }
     }
+}
+
+void loadTextureIntoBuffer(vector< vector<Color*> > &buffer, string imageName)
+{
+    bitmap_image image(imageName);
+    assert(image);
+
+    const unsigned int height = image.height();
+    const unsigned int width = image.width();
+
+    buffer = vector< vector<Color*> >(width, vector<Color*>(height));
+
+    for (int x = 0; x < width; ++x)
+    {
+        for (int y = 0; y < height; ++y)
+        {
+            unsigned char red, green, blue;
+            image.get_pixel(x, y, red, green, blue);
+
+            Color *color = new Color(red / 255.0, green / 255.0, blue / 255.0);
+            buffer[x][y] = color;
+        }
+    }
+}
+
+void getTextureInputs(vector< vector<Color*> > &whiteBuffer, vector< vector<Color*> > &blackBuffer)
+{
+    loadTextureIntoBuffer(whiteBuffer, "texture_w.bmp");
+    loadTextureIntoBuffer(blackBuffer, "texture_b.bmp");
+
+//     // print the texture buffer into a file
+//     ofstream output("texture_w.txt");
+//     output << whiteBuffer.size() << " " << whiteBuffer[0].size() << endl;
+//     for (int i = 0; i < whiteBuffer.size(); i++)
+//     {
+//         for (int j = 0; j < whiteBuffer[i].size(); j++)
+//         {
+//             output << whiteBuffer[i][j]->r << " " << whiteBuffer[i][j]->g << " " << whiteBuffer[i][j]->b << endl;
+//         }
+//     }
+//     output.close();
+
+//     output.open("texture_b.txt");
+//     output << blackBuffer.size() << " " << blackBuffer[0].size() << endl;
+//     for (int i = 0; i < blackBuffer.size(); i++)
+//     {
+//         for (int j = 0; j < blackBuffer[i].size(); j++)
+//         {
+//             output << blackBuffer[i][j]->r << " " << blackBuffer[i][j]->g << " " << blackBuffer[i][j]->b << endl;
+//         }
+//     }
+//     output.close();
 }

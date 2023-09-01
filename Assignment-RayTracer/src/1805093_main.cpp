@@ -12,7 +12,9 @@ Point* r8;   // r8 direction - dynamically updated in the display function
 Point* up;   // up direction
 Point* center;   // center of the scene - temp use
 
-GLint rotate_z = 0;
+boolean showTexture = false;
+vector< vector<Color*> > whiteTileColorBuffer;
+vector< vector<Color*> > blackTileColorBuffer;
 
 void init()
 {
@@ -25,6 +27,7 @@ void init()
     center = new Point();
 
     getInputs();
+    getTextureInputs(whiteTileColorBuffer, blackTileColorBuffer);
 
     glClearColor(0, 0, 0, 0);
     glMatrixMode(GL_PROJECTION);
@@ -42,14 +45,18 @@ void clearMem()
     delete center;
 
     for (Object *object : objects)
-    {
         delete object;
-    }
 
     for (LightSource *light : lights)
-    {
         delete light;
-    }
+
+    for (vector<Color*> row : whiteTileColorBuffer)
+        for (Color* color : row)
+            delete color;
+
+    for (vector<Color*> row : blackTileColorBuffer)
+        for (Color* color : row)
+            delete color;
 }
 
 void drawAxes()
@@ -78,6 +85,12 @@ void drawAxes()
     whenever the window needs to be re-painted. */
 void display()
 {
+    // update r8, up, look
+    r8 = look->cross(up);
+    r8->normalize();
+    up = r8->cross(look);
+    up->normalize();
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -85,9 +98,6 @@ void display()
     gluLookAt(pos->x, pos->y, pos->z,
               pos->x + look->x, pos->y + look->y, pos->z + look->z,
               up->x, up->y, up->z);
-
-    // rotation for a, d buttons
-    glRotatef(rotate_z, 0, 0, 1);
 
     // draw
     drawAxes();
@@ -223,7 +233,7 @@ void keyboardListener(unsigned char key, int x, int y)
 
         break;
 
-    case 'a':
+    case 'd':
         // rotate the object in the clockwise direction about its own axis
         pos->x += v * (-up->y*look->y);
         pos->y += v * (look->x*up->y);
@@ -234,7 +244,7 @@ void keyboardListener(unsigned char key, int x, int y)
 
         break;
 
-    case 'd':
+    case 'a':
         // rotate the object in the anti-clockwise direction about its own axis
         pos->x += v * (up->y*look->y);
         pos->y += v * (-look->x*up->y);
@@ -243,6 +253,15 @@ void keyboardListener(unsigned char key, int x, int y)
         look->y = center->y - pos->y;
         look->normalize();
 
+        break;
+
+    case ' ':
+        // toggle texture mode
+        showTexture = !showTexture;
+        if (showTexture)
+            cout << "Texture mode ON" << endl;
+        else
+            cout << "Texture mode OFF" << endl;
         break;
 
     // control exit
@@ -260,39 +279,41 @@ void keyboardListener(unsigned char key, int x, int y)
 /* Callback handler for special-key event */
 void specialKeyListener(int key, int x, int y)
 {
+    double v = 2;
+
     switch (key)
     {
     case GLUT_KEY_UP:
-        pos->x += look->x;
-        pos->y += look->y;
-        pos->z += look->z;
+        pos->x += look->x * 2;
+        pos->y += look->y * 2;
+        pos->z += look->z * 2;
         break;
     case GLUT_KEY_DOWN:
-        pos->x -= look->x;
-        pos->y -= look->y;
-        pos->z -= look->z;
+        pos->x -= look->x * 2;
+        pos->y -= look->y * 2;
+        pos->z -= look->z * 2;
         break;
 
     case GLUT_KEY_RIGHT:
-        pos->x += r8->x;
-        pos->y += r8->y;
-        pos->z += r8->z;
+        pos->x += r8->x * 2;
+        pos->y += r8->y * 2;
+        pos->z += r8->z * 2;
         break;
     case GLUT_KEY_LEFT:
-        pos->x -= r8->x;
-        pos->y -= r8->y;
-        pos->z -= r8->z;
+        pos->x -= r8->x * 2;
+        pos->y -= r8->y * 2;
+        pos->z -= r8->z * 2;
         break;
 
     case GLUT_KEY_PAGE_UP:
-        pos->x += up->x;
-        pos->y += up->y;
-        pos->z += up->z;
+        pos->x += up->x * 2;
+        pos->y += up->y * 2;
+        pos->z += up->z * 2;
         break;
     case GLUT_KEY_PAGE_DOWN:
-        pos->x -= up->x;
-        pos->y -= up->y;
-        pos->z -= up->z;
+        pos->x -= up->x * 2;
+        pos->y -= up->y * 2;
+        pos->z -= up->z * 2;
         break;
 
     default:
