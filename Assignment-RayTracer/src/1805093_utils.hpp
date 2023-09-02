@@ -184,10 +184,9 @@ void generateBmp()
             delete ray;
         }
 
-        // print loading percentage
-        if (i % 100 == 0)
+        if (i % 70 == 0)
         {
-            cout << "loading: " << (i * 100) / imageHeight << "%" << endl;
+            cout << "generating: " << (i * 100) / imageHeight << "%" << endl;
         }
     }
 
@@ -198,6 +197,11 @@ void generateBmp()
         {
             colorBuffer[i][j]->adjust();
             bmpFile.set_pixel(j, i, 255 * colorBuffer[i][j]->r, 255 * colorBuffer[i][j]->g, 255 * colorBuffer[i][j]->b);
+        }
+
+        if (i % 200 == 0)
+        {
+            cout << "saving: " << (i * 100) / imageHeight << "%" << endl;
         }
     }
 
@@ -242,6 +246,6 @@ void loadTextureIntoBuffer(vector< vector<Color*> > &buffer, string imageName)
 
 void getTextureInputs(vector< vector<Color*> > &whiteBuffer, vector< vector<Color*> > &blackBuffer)
 {
-    loadTextureIntoBuffer(whiteBuffer, "images/texture_w.bmp");
-    loadTextureIntoBuffer(blackBuffer, "images/texture_b.bmp");
+    loadTextureIntoBuffer(whiteBuffer, "assets/texture_w.bmp");
+    loadTextureIntoBuffer(blackBuffer, "assets/texture_b.bmp");
 }

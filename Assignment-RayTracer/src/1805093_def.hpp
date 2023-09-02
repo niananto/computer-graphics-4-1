@@ -535,6 +535,7 @@ Triangle::Triangle(Point a, Point b, Point c)
 
 double Triangle::calcIntersection(Ray *ray)
 {
+    /////////////////// BARYCENTRIC COORDINATES ///////////////////
     double betaMatrix[3][3] = {
         {a.x - ray->start->x, a.x - c.x, ray->dir->x},
         {a.y - ray->start->y, a.y - c.y, ray->dir->y},
@@ -561,6 +562,70 @@ double Triangle::calcIntersection(Ray *ray)
         return t;
 
     return -1;
+
+    // these other two are suggested by copilot
+    
+    /////////////////// MOLLER TRUMBORE ALGORITHM ///////////////////
+    // Point *edge1 = b.subtract(&a);
+    // Point *edge2 = c.subtract(&a);
+
+    // Point *h = ray->dir->cross(edge2);
+    // double a = edge1->dot(h);
+
+    // if (a > -EPSILON && a < EPSILON)
+    //     return -1;
+
+    // double f = 1 / a;
+    // Point *s = ray->start->subtract(&this->a);
+    // double u = f * s->dot(h);
+
+    // if (u < 0 || u > 1)
+    //     return -1;
+
+    // Point *q = s->cross(edge1);
+    // double v = f * ray->dir->dot(q);
+
+    // if (v < 0 || u + v > 1)
+    //     return -1;
+
+    // double t = f * edge2->dot(q);
+
+    // delete edge1, edge2, h, s, q;
+
+    // if (t > -EPSILON)
+    //     return t;
+
+    // return -1;
+
+    /////////////////// PLANE INTERSECTION ///////////////////
+    // Point *normal = getNormal(&a);
+    // double t = (normal->dot(&a) - normal->dot(ray->start)) / normal->dot(ray->dir);
+    // if (t < EPSILON)
+    //     return -1;
+
+    // Point *intersection = ray->getPoint(t);
+
+    // Point *edge1 = b.subtract(&a);
+    // Point *edge2 = c.subtract(&a);
+
+    // Point *C = intersection->subtract(&a);
+
+    // double dot11 = edge1->dot(edge1);
+    // double dot12 = edge1->dot(edge2);
+    // double dot22 = edge2->dot(edge2);
+    // double dot1c = edge1->dot(C);
+    // double dot2c = edge2->dot(C);
+
+    // double invDenom = 1 / (dot11 * dot22 - dot12 * dot12);
+    // double u = (dot22 * dot1c - dot12 * dot2c) * invDenom;
+    // double v = (dot11 * dot2c - dot12 * dot1c) * invDenom;
+
+    // delete normal, intersection, edge1, edge2, C;
+
+    // if (u >= -EPSILON && v >= -EPSILON && u + v <= 1 + EPSILON)
+    //     return t;
+
+    // return -1;
 }
 
 Point *Triangle::getNormal(Point *p)
@@ -749,7 +814,7 @@ Color *Board::getTextureAt(Point *p)
 
 void Pyramid::calculateAllSides()
 {
-    if (sideTriangles.size() > 0 && bottomRect != NULL)
+    if (sideTriangles.size() > 0)
         return;
 
     Point *bottom1 = lowest.add(new Point(width / sqrt(2), 0, 0));
@@ -763,7 +828,7 @@ void Pyramid::calculateAllSides()
     sideTriangles.push_back(new Triangle(*bottom3, *bottom4, *top));
     sideTriangles.push_back(new Triangle(*bottom4, *bottom1, *top));
 
-    bottomRect = new Rect(*bottom3, *bottom1);
+    bottomRect = new Rect(*bottom1, *bottom3);
 
     delete bottom1, bottom2, bottom3, bottom4, top;
 }
@@ -814,8 +879,6 @@ double Pyramid::handleIntersecttion(Ray *ray)
 
     // apply barrycentric coordinates
     // for each triangle, check if the ray intersects
-    // if intersects, check if the point is inside the triangle
-    // if inside, return the color of the triangle
     double tMin = -1;
     for (Triangle *triangle : sideTriangles)
     {
@@ -826,8 +889,10 @@ double Pyramid::handleIntersecttion(Ray *ray)
 
     // check if the ray intersects with the bottom Rect
     double t = bottomRect->calcIntersection(ray);
-    if (t > -EPSILON && (tMin < 0 || t < tMin))
+    if (t > -EPSILON && (tMin < 0 || t < tMin)) {
+        cout << "bottom rect" << endl;
         tMin = t;
+    }
 
     return tMin;
 }

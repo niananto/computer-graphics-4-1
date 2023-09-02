@@ -31,7 +31,18 @@ For Windows Only
 - `SPACE` - Texture Mode On/Off
 - `ESC` - Exit
 
+## Screenshots
+![Screenshot 1](./assets/1.bmp)
+![Screenshot 2](./assets/2.bmp)
+![Screenshot 3](./assets/3.bmp)
+
 ## Notes
 - Floor is not infinite
-- Reflection of any level works perfectly
+- Reflection of any level works perfectly (except for pyramid's base)
 - Texture works great. I have commented out the part where texture needs to get multiplied with floor color as that becomes too dark
+- The video generated here is not good. But you can take the code, it works
+
+## Further Improvements
+- Floor can be made infinite
+- Pyramid's base is not properly reflected
+![pyramid error](./assets/out-pyramid-error.bmp)
