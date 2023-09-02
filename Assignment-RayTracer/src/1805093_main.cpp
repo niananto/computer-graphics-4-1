@@ -273,8 +273,6 @@ void keyboardListener(unsigned char key, int x, int y)
         break;
     }
 
-    generateBmp();
-
     glutPostRedisplay(); // Post a paint request to activate display()
 }
 
@@ -321,8 +319,6 @@ void specialKeyListener(int key, int x, int y)
     default:
         break;
     }
-
-    generateBmp();
 
     glutPostRedisplay(); // Post a paint request to activate display()
 }
