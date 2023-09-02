@@ -114,73 +114,6 @@ void getInputs()
     }
 
     input.close();
-
-    // // output all the inputs taken
-
-    // cout << "nearPlane: " << nearPlane << endl;
-    // cout << "farPlane: " << farPlane << endl;
-    // cout << "fovY: " << fovY << endl;
-    // cout << "aspectRatio: " << aspectRatio << endl;
-    // cout << "recursionLevel: " << recursionLevel << endl;
-    // cout << "imageWidth: " << imageWidth << endl;
-    // cout << "imageHeight: " << imageHeight << endl;
-    // cout << "checkerBoardWidth: " << checkerBoardWidth << endl;
-    // cout << "checkerBoardHeight: " << checkerBoardHeight << endl;
-    // cout << "checkerBoardCoeff: " << checkerBoardCoeff[0] << " " << checkerBoardCoeff[1] << " " << checkerBoardCoeff[2] << endl;
-
-    // cout << "noOfObjects: " << noOfObjects << endl;
-    // for (int i = 0; i < noOfObjects; i++)
-    // {
-    //     cout << objects[i]->objectType << endl;
-    //     if (objects[i]->objectType == "sphere")
-    //     {
-    //         Sphere *sphere = (Sphere *)objects[i];
-    //         cout << sphere->center.x << " " << sphere->center.y << " " << sphere->center.z << endl;
-    //         cout << sphere->radius << endl;
-    //         cout << sphere->color.r << " " << sphere->color.g << " " << sphere->color.b << endl;
-    //         cout << sphere->lightCoefficients.ambient << " " << sphere->lightCoefficients.diffuse << " " << sphere->lightCoefficients.specular << " " << sphere->lightCoefficients.reflection << endl;
-    //         cout << sphere->shininess << endl;
-    //     }
-    //     else if (objects[i]->objectType == "pyramid")
-    //     {
-    //         Pyramid *pyramid = (Pyramid *)objects[i];
-    //         cout << pyramid->lowest.x << " " << pyramid->lowest.y << " " << pyramid->lowest.z << endl;
-    //         cout << pyramid->width << " " << pyramid->height << endl;
-    //         cout << pyramid->color.r << " " << pyramid->color.g << " " << pyramid->color.b << endl;
-    //         cout << pyramid->lightCoefficients.ambient << " " << pyramid->lightCoefficients.diffuse << " " << pyramid->lightCoefficients.specular << " " << pyramid->lightCoefficients.reflection << endl;
-    //         cout << pyramid->shininess << endl;
-    //     }
-    //     else if (objects[i]->objectType == "cube")
-    //     {
-    //         Cube *cube = (Cube *)objects[i];
-    //         cout << cube->bottomLeftFront.x << " " << cube->bottomLeftFront.y << " " << cube->bottomLeftFront.z << endl;
-    //         cout << cube->side << endl;
-    //         cout << cube->color.r << " " << cube->color.g << " " << cube->color.b << endl;
-    //         cout << cube->lightCoefficients.ambient << " " << cube->lightCoefficients.diffuse << " " << cube->lightCoefficients.specular << " " << cube->lightCoefficients.reflection << endl;
-    //         cout << cube->shininess << endl;
-    //     }
-    // }
-
-    // cout << "noOfNormalLights: " << noOfNormalLights << endl;
-    // cout << "noOfSpotLights: " << noOfSpotLights << endl;
-    // for (int i = 0; i < lights.size(); i++)
-    // {
-    //     cout << lights[i]->lightType << endl;
-    //     if (lights[i]->lightType == "normal")
-    //     {
-    //         NormalLightSource *normal = (NormalLightSource *)lights[i];
-    //         cout << normal->position.x << " " << normal->position.y << " " << normal->position.z << endl;
-    //         cout << normal->falloff << endl;
-    //     }
-    //     else if (lights[i]->lightType == "spot")
-    //     {
-    //         SpotLightSource *spot = (SpotLightSource *)lights[i];
-    //         cout << spot->position.x << " " << spot->position.y << " " << spot->position.z << endl;
-    //         cout << spot->falloff << endl;
-    //         cout << spot->direction.x << " " << spot->direction.y << " " << spot->direction.z << endl;
-    //         cout << spot->cutoffAngle << endl;
-    //     }
-    // }
 }
 
 void generateBmp()
@@ -268,7 +201,7 @@ void generateBmp()
         }
     }
 
-    bmpFile.save_image("out" + to_string(imgCount) + ".bmp");
+    bmpFile.save_image("images/out" + to_string(imgCount) + ".bmp");
     imgCount++;
 
     cout << "image generated" << endl;
@@ -309,29 +242,6 @@ void loadTextureIntoBuffer(vector< vector<Color*> > &buffer, string imageName)
 
 void getTextureInputs(vector< vector<Color*> > &whiteBuffer, vector< vector<Color*> > &blackBuffer)
 {
-    loadTextureIntoBuffer(whiteBuffer, "texture_w.bmp");
-    loadTextureIntoBuffer(blackBuffer, "texture_b.bmp");
-
-//     // print the texture buffer into a file
-//     ofstream output("texture_w.txt");
-//     output << whiteBuffer.size() << " " << whiteBuffer[0].size() << endl;
-//     for (int i = 0; i < whiteBuffer.size(); i++)
-//     {
-//         for (int j = 0; j < whiteBuffer[i].size(); j++)
-//         {
-//             output << whiteBuffer[i][j]->r << " " << whiteBuffer[i][j]->g << " " << whiteBuffer[i][j]->b << endl;
-//         }
-//     }
-//     output.close();
-
-//     output.open("texture_b.txt");
-//     output << blackBuffer.size() << " " << blackBuffer[0].size() << endl;
-//     for (int i = 0; i < blackBuffer.size(); i++)
-//     {
-//         for (int j = 0; j < blackBuffer[i].size(); j++)
-//         {
-//             output << blackBuffer[i][j]->r << " " << blackBuffer[i][j]->g << " " << blackBuffer[i][j]->b << endl;
-//         }
-//     }
-//     output.close();
+    loadTextureIntoBuffer(whiteBuffer, "images/texture_w.bmp");
+    loadTextureIntoBuffer(blackBuffer, "images/texture_b.bmp");
 }

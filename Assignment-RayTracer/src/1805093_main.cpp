@@ -18,10 +18,10 @@ vector< vector<Color*> > blackTileColorBuffer;
 
 void init()
 {
-    pos = new Point(0, -200, 100);
-    look = new Point(0, 50, -10);
+    pos = new Point(0, 100, 100);
+    look = new Point(0, -1, -1);
     look->normalize();
-    r8 = new Point(1, 0, 0);
+    r8 = new Point(-20, 0, 0);
     r8->normalize();
     up = r8->cross(look);
     center = new Point();
@@ -273,6 +273,8 @@ void keyboardListener(unsigned char key, int x, int y)
         break;
     }
 
+    generateBmp();
+
     glutPostRedisplay(); // Post a paint request to activate display()
 }
 
@@ -319,6 +321,8 @@ void specialKeyListener(int key, int x, int y)
     default:
         break;
     }
+
+    generateBmp();
 
     glutPostRedisplay(); // Post a paint request to activate display()
 }

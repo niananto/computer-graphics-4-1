@@ -10,9 +10,7 @@
 :: Done
 
 del %1.exe
-del %1.o
 
-@REM
 echo "Running \m"
 @REM gcc -c -o main.o main.cpp -I\"D:\CodeBlocks\MinGW\x86_64-w64-mingw32\include"
 g++ -c -o %1.o %1.cpp -I\"C:\msys64\mingw64\bin"
@@ -22,3 +20,5 @@ g++ -o %1.exe  %1.o -L\"C:\msys64\mingw64\lib -lopengl32 -lglu32 -lfreeglut"
 @REM cls
 echo "App Running"
 %1.exe
+
+del %1.o
